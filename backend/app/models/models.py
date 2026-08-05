@@ -354,6 +354,13 @@ class Simulacao(Base):
     objetivo_valor: Mapped[float | None] = mapped_column(Float)
     mensagem_erro: Mapped[str | None] = mapped_column(Text)
     log_path: Mapped[str | None] = mapped_column(String(500))
+    parametros_json_path: Mapped[str | None] = mapped_column(
+        String(500),
+        comment=(
+            "Snapshot do arquivo de parâmetros usado nesta execução. Congelado no "
+            "disparo — editar os pesos do cenário depois não altera este valor."
+        ),
+    )
 
     cenario: Mapped[Cenario] = relationship(back_populates="simulacoes")
     turmas_sugeridas: Mapped[list["TurmaSugerida"]] = relationship(
@@ -449,6 +456,35 @@ class ResultadoKpis(Base):
     horas_reposicao_sexta: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     simulacao: Mapped[Simulacao] = relationship(back_populates="kpis")
+
+
+class OportunidadeSimulacao(Base):
+    """Leque de oportunidades: por tipologia e data, o que é possível abrir.
+
+    Agregado de **todas** as candidatas geradas (não só as selecionadas pelo
+    solver) — responde "o que poderia ser aberto e quando", já que a decisão
+    final continua com a equipe. `instrutor_ids_csv` é uma simplificação
+    deliberada (texto separado por vírgula) para evitar uma tabela de junção
+    só para dado de leitura/relatório.
+    """
+
+    __tablename__ = "oportunidades_simulacao"
+    __table_args__ = (
+        Index("ix_oportunidade_sim_tipologia_data", "simulacao_id", "tipologia_id", "data_inicio"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    simulacao_id: Mapped[int] = mapped_column(
+        ForeignKey("simulacoes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    tipologia_id: Mapped[int] = mapped_column(
+        ForeignKey("tipologias.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    data_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    total_turmas: Mapped[int] = mapped_column(Integer, nullable=False)
+    instrutor_ids_csv: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    tipologia: Mapped[Tipologia] = relationship()
 
 
 class SnapshotCapacidade(Base):
