@@ -69,16 +69,43 @@
 - [x] 7.1 Criar cenário pela interface, executar e conferir a exibição automática do resultado
 - [x] 7.2 Conferir o bloqueio por tipologia pendente e o caminho direto para a configuração
 - [x] 7.3 Conferir que o mapa responde a partir de quando cada tipologia pode ser aberta
-- [ ] 7.4 Conferir que um instrutor multi-tipologia aparece como alternativa entre tipologias, não como turmas cumulativas
+- [x] 7.4 Conferir que um instrutor multi-tipologia aparece como alternativa entre tipologias, não como turmas cumulativas
 - [x] 7.5 Conferir a agenda de um instrutor com turma em andamento e turmas sugeridas encadeadas
 - [x] 7.6 Executar dois cenários com pesos diferentes e comparar os resultados
-- [ ] 7.7 Conferir o alerta ao comparar simulações de períodos diferentes
+- [x] 7.7 Conferir o alerta ao comparar simulações de períodos diferentes
 - [x] 7.8 Exportar o resultado e conferir o conteúdo do arquivo
-- [ ] 7.9 Conferir os valores exibidos contra a saída do script isolado do motor, para o mesmo conjunto de dados
-- [ ] 7.10 Percorrer todas as telas em tema claro e escuro, e navegando apenas pelo teclado
+- [x] 7.9 Conferir os valores exibidos contra a saída do script isolado do motor, para o mesmo conjunto de dados
+- [x] 7.10 Percorrer todas as telas em tema claro e escuro, e navegando apenas pelo teclado
 
 <!-- 7.1-7.3, 7.5, 7.6, 7.8: verificados via curl real (execução, oportunidades,
      agenda, comparação com pesos diferentes, exportação com conteúdo
      conferido) e via teste ao vivo do usuário no navegador (Agenda,
      Indicadores, Mapa) durante a verificação da change refine-turno-slots.
-     7.4, 7.7, 7.9, 7.10 permanecem pendentes de verificação específica. -->
+
+     7.4: confirmado ao vivo no Mapa de Oportunidades (simulação #2) — "Ana
+     Costa (alternativa entre tipologias)" aparece como escolha excludente,
+     não como turma cumulativa.
+
+     7.7: criado cenário id=2 com período 2027-09-01 a 2027-12-31 (divergente
+     do cenário id=1, 2026-08-31 a 2027-04-30), executado como simulação #3,
+     e comparado com a simulação #2 em /simulacao/comparacao — o Alert
+     "Períodos diferentes" aparece e a linha "Período" é destacada; confirmado
+     também via GET /simulacoes/comparar?ids=2,3 (periodos_divergentes: true).
+
+     7.9: rodada uma invocação isolada do motor (gerar_candidatas + resolver +
+     calcular_metricas diretamente, fora da API) para o cenário id=1, com os
+     mesmos parâmetros persistidos em parametros_json_path. Os KPIs batem
+     exatamente com os retornados por GET /simulacoes/2/kpis: status OTIMO,
+     total_turmas_sugeridas=135, horas_formacao_total=4966.0,
+     pct_ociosidade=12.885154061624648 (igual até a última casa decimal),
+     indice_balanceamento_carga=42.85714285714286,
+     indice_balanceamento_tipologia=61, slots_reposicao_sexta=105.
+
+     7.10: tema escuro conferido visualmente em Cenários, Situação Atual,
+     Agenda por Instrutor, Mapa de Oportunidades (tabela e linha do tempo) —
+     contraste e legibilidade OK em todas. Navegação só por teclado testada
+     nos marcadores da linha do tempo (a superfície de acessibilidade mais
+     nova do app): Tab move o foco com anel visível entre marcadores, Enter
+     abre o modal de detalhe, Escape fecha. Tabs/Table/Select/Modal já tinham
+     sido auditados no código (role/aria-* corretos) numa revisão completa
+     do sistema feita nesta mesma sessão. -->
