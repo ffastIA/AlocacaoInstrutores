@@ -59,13 +59,13 @@
 
 ## 8. Verificação
 
-- [ ] 8.1 Importar uma planilha válida pela interface e conferir o relatório de sucesso
-- [ ] 8.2 Importar uma planilha com linhas inválidas e conferir a listagem das rejeições com número de linha e motivo
-- [ ] 8.3 Importar planilha sem coluna obrigatória e conferir a mensagem de recusa
-- [ ] 8.4 Conferir que o caminho direto para configuração de tipologias pendentes funciona após importar instrutores
-- [ ] 8.5 Configurar uma tipologia e conferir o número de encontros exibido antes da confirmação
-- [ ] 8.6 Tentar configurar carga horária não divisível e conferir a mensagem de erro
-- [ ] 8.7 Cadastrar turma em andamento com turno incompatível e conferir o bloqueio
-- [ ] 8.8 Conferir a ordenação das turmas em andamento pela data de término
-- [ ] 8.9 Conferir o aviso permanente na tela de datas não letivas
-- [ ] 8.10 Percorrer todas as telas em tema claro e escuro, e navegando apenas pelo teclado
+- [x] 8.1 Importar uma planilha válida pela interface e conferir o relatório de sucesso
+- [x] 8.2 Importar uma planilha com linhas inválidas e conferir a listagem das rejeições com número de linha e motivo
+- [x] 8.3 Importar planilha sem coluna obrigatória e conferir a mensagem de recusa
+- [x] 8.4 Conferir que o caminho direto para configuração de tipologias pendentes funciona após importar instrutores
+- [x] 8.5 Configurar uma tipologia e conferir o número de encontros exibido antes da confirmação
+- [x] 8.6 Tentar configurar carga horária não divisível e conferir a mensagem de erro
+- [x] 8.7 Cadastrar turma em andamento com turno incompatível e conferir o bloqueio
+- [x] 8.8 Conferir a ordenação das turmas em andamento pela data de término
+- [x] 8.9 Conferir o aviso permanente na tela de datas não letivas
+- [x] 8.10 Percorrer todas as telas em tema claro e escuro, e navegando apenas pelo teclado
