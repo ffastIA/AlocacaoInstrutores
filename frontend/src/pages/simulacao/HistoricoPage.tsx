@@ -9,6 +9,7 @@ import { Select } from "../../components/Select";
 import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
 import type { ColunaTabela } from "../../components/Table";
+import { formatarDataHora } from "../../utils/data";
 import styles from "./HistoricoPage.module.css";
 
 const ROTULO_STATUS: Record<string, string> = {
@@ -90,7 +91,7 @@ export function HistoricoPage() {
       titulo: "Executada em",
       ordenavel: true,
       valorOrdenacao: (s) => s.iniciado_em,
-      renderizar: (s) => s.iniciado_em.slice(0, 16).replace("T", " "),
+      renderizar: (s) => formatarDataHora(s.iniciado_em),
     },
     {
       chave: "status",

@@ -5,6 +5,7 @@ import type { Cenario, Comparacao, ComparacaoItem, Simulacao } from "../../api/t
 import { Alert } from "../../components/Alert";
 import { EmptyState } from "../../components/EmptyState";
 import { Spinner } from "../../components/Spinner";
+import { formatarData, formatarDataHora } from "../../utils/data";
 import { PESOS_META } from "./pesos";
 import styles from "./ComparacaoPage.module.css";
 
@@ -16,7 +17,10 @@ interface Linha {
 function criarLinhas(cenarios: Cenario[]): Linha[] {
   return [
     { rotulo: "Cenário", valor: (i) => i.cenario_nome },
-    { rotulo: "Período", valor: (i) => `${i.periodo_de} a ${i.periodo_ate}` },
+    {
+      rotulo: "Período",
+      valor: (i) => `${formatarData(i.periodo_de)} a ${formatarData(i.periodo_ate)}`,
+    },
     {
       rotulo: "Escopo",
       valor: (i) => {
@@ -134,7 +138,7 @@ export function ComparacaoPage() {
                       />
                       #{s.id} —{" "}
                       {cenarios.find((c) => c.id === s.cenario_id)?.nome ?? `cenário ${s.cenario_id}`}{" "}
-                      ({s.iniciado_em.slice(0, 16).replace("T", " ")})
+                      ({formatarDataHora(s.iniciado_em)})
                       {!concluida && " — ainda não concluída"}
                     </label>
                   </li>

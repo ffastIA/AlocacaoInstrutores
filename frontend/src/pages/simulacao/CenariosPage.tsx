@@ -4,6 +4,7 @@ import { api } from "../../api/cliente";
 import { ApiError } from "../../api/erros";
 import type { Cenario, CenarioIn, PesosObjetivo, Projeto, Simulacao } from "../../api/types";
 import { Alert } from "../../components/Alert";
+import { BarraProporcional } from "../../components/BarraProporcional";
 import { Button } from "../../components/Button";
 import { DateRangeField } from "../../components/DateRangeField";
 import { EmptyState } from "../../components/EmptyState";
@@ -13,6 +14,7 @@ import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
 import type { ColunaTabela } from "../../components/Table";
 import { TextField } from "../../components/TextField";
+import { formatarData } from "../../utils/data";
 import { CheckboxGrupo } from "../dados/cadastros/CheckboxGrupo";
 import { PESOS_META } from "./pesos";
 import styles from "./CenariosPage.module.css";
@@ -217,7 +219,11 @@ export function CenariosPage() {
         </button>
       ),
     },
-    { chave: "periodo", titulo: "Período", renderizar: (c) => `${c.periodo_de} a ${c.periodo_ate}` },
+    {
+      chave: "periodo",
+      titulo: "Período",
+      renderizar: (c) => `${formatarData(c.periodo_de)} a ${formatarData(c.periodo_ate)}`,
+    },
     {
       chave: "escopo",
       titulo: "Escopo",
@@ -231,10 +237,24 @@ export function CenariosPage() {
     {
       chave: "pesos",
       titulo: "Pesos",
-      renderizar: (c) =>
-        PESOS_META.map((p) => `${p.rotulo.split(" ")[0]}: ${c.pesos_objetivo[p.chave]}`).join(
-          " · ",
-        ),
+      renderizar: (c) => (
+        <div className={styles.pesosCelula}>
+          <BarraProporcional
+            tamanho="compacta"
+            papel="distribuicao"
+            segmentos={PESOS_META.map((p) => ({
+              rotulo: p.rotulo,
+              valor: c.pesos_objetivo[p.chave],
+              cor: p.cor,
+            }))}
+          />
+          <span className={styles.pesosTexto}>
+            {PESOS_META.map((p) => `${p.rotulo.split(" ")[0]}: ${c.pesos_objetivo[p.chave]}`).join(
+              " · ",
+            )}
+          </span>
+        </div>
+      ),
     },
     {
       chave: "acoes",
@@ -352,6 +372,14 @@ export function CenariosPage() {
 
           <fieldset className={styles.pesos}>
             <legend className={styles.rotuloGrupo}>Pesos do objetivo</legend>
+            <BarraProporcional
+              papel="distribuicao"
+              segmentos={PESOS_META.map((meta) => ({
+                rotulo: meta.rotulo,
+                valor: form.pesos[meta.chave],
+                cor: meta.cor,
+              }))}
+            />
             {PESOS_META.map((meta) => (
               <div key={meta.chave} className={styles.linhaPeso}>
                 <NumberField

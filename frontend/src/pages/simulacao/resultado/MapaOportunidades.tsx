@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../../api/cliente";
 import { ApiError } from "../../../api/erros";
 import type {
@@ -15,8 +16,17 @@ import { DateRangeField } from "../../../components/DateRangeField";
 import { EmptyState } from "../../../components/EmptyState";
 import { Modal } from "../../../components/Modal";
 import { Select } from "../../../components/Select";
+import { Selo } from "../../../components/Selo";
 import { Spinner } from "../../../components/Spinner";
+import { Tabs } from "../../../components/Tabs";
+import { formatarData } from "../../../utils/data";
+import { LinhaDoTempoOportunidades } from "./LinhaDoTempoOportunidades";
 import styles from "./MapaOportunidades.module.css";
+
+const VISUALIZACOES = [
+  { id: "tabela", rotulo: "Tabela" },
+  { id: "linha-do-tempo", rotulo: "Linha do tempo" },
+];
 
 interface MapaOportunidadesProps {
   simulacaoId: number;
@@ -31,6 +41,17 @@ const ROTULO_TURNO: Record<string, string> = {
 };
 
 export function MapaOportunidades({ simulacaoId }: MapaOportunidadesProps) {
+  const [params, setParams] = useSearchParams();
+  const visualizacao = params.get("visualizacao") === "linha-do-tempo" ? "linha-do-tempo" : "tabela";
+
+  function selecionarVisualizacao(id: string): void {
+    setParams((atual) => {
+      const novo = new URLSearchParams(atual);
+      novo.set("visualizacao", id);
+      return novo;
+    });
+  }
+
   const [oportunidades, setOportunidades] = useState<Oportunidade[] | null>(null);
   const [turmasSugeridas, setTurmasSugeridas] = useState<TurmaSugerida[]>([]);
   const [instrutores, setInstrutores] = useState<Instrutor[]>([]);
@@ -228,67 +249,83 @@ export function MapaOportunidades({ simulacaoId }: MapaOportunidadesProps) {
           }
         />
       ) : (
-        <div className={styles.grupos}>
-          {grupos.map((grupo) => (
-            <Card key={grupo.tipologiaNome} titulo={grupo.tipologiaNome}>
-              <div className={styles.tabelaScroll}>
-                <table className={styles.tabela}>
-                  <thead>
-                    <tr>
-                      <th>Data de início</th>
-                      <th>Turmas possíveis</th>
-                      <th>Instrutores</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {grupo.itens.map((o) => (
-                      <tr key={`${o.tipologia_id}-${o.data_inicio}`}>
-                        <td>{o.data_inicio}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className={styles.linkDetalhe}
-                            onClick={() =>
-                              setDetalhe({
-                                tipologiaNome: grupo.tipologiaNome,
-                                dataInicio: o.data_inicio,
-                              })
-                            }
-                          >
-                            {o.total_turmas}
-                          </button>
-                        </td>
-                        <td>
-                          {o.instrutor_ids.map((id, indice) => {
-                            const nome = instrutorPorId.get(id)?.nome ?? `#${id}`;
-                            const alternativa = chavesAlternativa.has(`${id}::${o.data_inicio}`);
-                            return (
-                              <span key={id}>
-                                {indice > 0 && ", "}
-                                {nome}
-                                {alternativa && (
-                                  <span className={styles.marcaAlternativa}>
-                                    {" "}
-                                    (alternativa entre tipologias)
+        <>
+          <Tabs abas={VISUALIZACOES} abaAtiva={visualizacao} onSelecionar={selecionarVisualizacao} />
+
+          {visualizacao === "linha-do-tempo" ? (
+            <LinhaDoTempoOportunidades
+              grupos={grupos}
+              chavesAlternativa={chavesAlternativa}
+              onSelecionarDetalhe={(tipologiaNome, dataInicio) =>
+                setDetalhe({ tipologiaNome, dataInicio })
+              }
+            />
+          ) : (
+            <div className={styles.grupos}>
+              {grupos.map((grupo) => (
+                <Card key={grupo.tipologiaNome} titulo={grupo.tipologiaNome}>
+                  <div className={styles.tabelaScroll}>
+                    <table className={styles.tabela}>
+                      <thead>
+                        <tr>
+                          <th>Data de início</th>
+                          <th>Turmas possíveis</th>
+                          <th>Instrutores</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grupo.itens.map((o) => (
+                          <tr key={`${o.tipologia_id}-${o.data_inicio}`}>
+                            <td>{formatarData(o.data_inicio)}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className={styles.linkDetalhe}
+                                onClick={() =>
+                                  setDetalhe({
+                                    tipologiaNome: grupo.tipologiaNome,
+                                    dataInicio: o.data_inicio,
+                                  })
+                                }
+                              >
+                                {o.total_turmas}
+                              </button>
+                            </td>
+                            <td>
+                              {o.instrutor_ids.map((id, indice) => {
+                                const nome = instrutorPorId.get(id)?.nome ?? `#${id}`;
+                                const alternativa = chavesAlternativa.has(
+                                  `${id}::${o.data_inicio}`,
+                                );
+                                return (
+                                  <span key={id}>
+                                    {indice > 0 && ", "}
+                                    {nome}
+                                    {alternativa && (
+                                      <>
+                                        {" "}
+                                        <Selo tom="alerta">alternativa entre tipologias</Selo>
+                                      </>
+                                    )}
                                   </span>
-                                )}
-                              </span>
-                            );
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          ))}
-        </div>
+                                );
+                              })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <Modal
         aberto={detalhe !== null}
-        titulo={detalhe ? `${detalhe.tipologiaNome} — ${detalhe.dataInicio}` : ""}
+        titulo={detalhe ? `${detalhe.tipologiaNome} — ${formatarData(detalhe.dataInicio)}` : ""}
         onFechar={() => setDetalhe(null)}
       >
         {turmasDoDetalhe.length === 0 ? (
@@ -305,7 +342,8 @@ export function MapaOportunidades({ simulacaoId }: MapaOportunidadesProps) {
                 </p>
                 <p>Modalidade: {turma.modalidade}</p>
                 <p>
-                  {turma.data_inicio} a {turma.data_fim} · {turma.num_encontros} encontro(s) ·{" "}
+                  {formatarData(turma.data_inicio)} a {formatarData(turma.data_fim)} ·{" "}
+                  {turma.num_encontros} encontro(s) ·{" "}
                   {turma.carga_horaria_total}h
                 </p>
               </div>

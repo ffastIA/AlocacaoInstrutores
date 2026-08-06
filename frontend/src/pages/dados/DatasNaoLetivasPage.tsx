@@ -19,6 +19,7 @@ import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
 import type { ColunaTabela } from "../../components/Table";
 import { TextField } from "../../components/TextField";
+import { formatarData } from "../../utils/data";
 import styles from "./DatasNaoLetivasPage.module.css";
 
 const TIPOS: { valor: TipoDataNaoLetiva; rotulo: string }[] = [
@@ -195,8 +196,8 @@ export function DatasNaoLetivasPage() {
       valorOrdenacao: (item) => item.data_inicio,
       renderizar: (item) =>
         item.data_inicio === item.data_fim
-          ? item.data_inicio
-          : `${item.data_inicio} a ${item.data_fim}`,
+          ? formatarData(item.data_inicio)
+          : `${formatarData(item.data_inicio)} a ${formatarData(item.data_fim)}`,
     },
     {
       chave: "tipo",

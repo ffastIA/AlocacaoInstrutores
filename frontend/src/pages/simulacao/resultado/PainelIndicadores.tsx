@@ -9,11 +9,15 @@ import type {
   TurmaSugerida,
 } from "../../../api/types";
 import { Alert } from "../../../components/Alert";
+import { BarraProporcional } from "../../../components/BarraProporcional";
 import { Card } from "../../../components/Card";
+import { Selo } from "../../../components/Selo";
 import { Spinner } from "../../../components/Spinner";
 import { Table } from "../../../components/Table";
 import type { ColunaTabela } from "../../../components/Table";
+import { formatarData, formatarDataHora } from "../../../utils/data";
 import { PESOS_META } from "../pesos";
+import { SOLVER_STATUS_META } from "../solverStatus";
 import styles from "./PainelIndicadores.module.css";
 
 interface PainelIndicadoresProps {
@@ -30,12 +34,6 @@ const EXPLICACOES: Record<string, string> = {
     "Diferença entre o instrutor mais e o menos utilizado. Quanto menor, mais equilibrada a carga.",
   indice_balanceamento_tipologia:
     "Diferença entre a tipologia mais e a menos ofertada. Quanto menor, mais equilibrada a oferta entre tipologias.",
-};
-
-const QUALIDADE_SOLUCAO: Record<string, string> = {
-  OTIMO: "A melhor solução possível foi encontrada e comprovada.",
-  FACTIVEL: "A busca foi interrompida por tempo — o resultado é viável, mas pode não ser o ótimo.",
-  INVIAVEL: "Nenhuma solução viável foi encontrada para os parâmetros informados.",
 };
 
 export function PainelIndicadores({ simulacaoId, simulacao }: PainelIndicadoresProps) {
@@ -83,14 +81,25 @@ export function PainelIndicadores({ simulacaoId, simulacao }: PainelIndicadoresP
       numerica: true,
       ordenavel: true,
       valorOrdenacao: (c) => c.utilizacao_percentual,
-      renderizar: (c) => `${c.utilizacao_percentual}%`,
+      renderizar: (c) => (
+        <div className={styles.celulaUtilizacao}>
+          <BarraProporcional
+            tamanho="compacta"
+            papel="medidor"
+            maximo={100}
+            rotulo="Utilização"
+            segmentos={[{ rotulo: "Utilização", valor: c.utilizacao_percentual, cor: "primaria" }]}
+          />
+          <span>{c.utilizacao_percentual}%</span>
+        </div>
+      ),
     },
     {
       chave: "primeira_data_livre",
       titulo: "Primeira data livre",
       ordenavel: true,
       valorOrdenacao: (c) => c.primeira_data_livre ?? "",
-      renderizar: (c) => c.primeira_data_livre ?? "—",
+      renderizar: (c) => formatarData(c.primeira_data_livre),
     },
   ];
 
@@ -99,7 +108,7 @@ export function PainelIndicadores({ simulacaoId, simulacao }: PainelIndicadoresP
       <Card titulo="Metadados da execução">
         <div className={styles.grade}>
           <div>
-            <p className={styles.valor}>{simulacao.iniciado_em.slice(0, 16).replace("T", " ")}</p>
+            <p className={styles.valor}>{formatarDataHora(simulacao.iniciado_em)}</p>
             <p className={styles.rotulo}>Executada em</p>
           </div>
           <div>
@@ -109,10 +118,16 @@ export function PainelIndicadores({ simulacaoId, simulacao }: PainelIndicadoresP
             <p className={styles.rotulo}>Tempo consumido</p>
           </div>
           <div>
-            <p className={styles.valor}>{simulacao.solver_status ?? "—"}</p>
+            {simulacao.solver_status ? (
+              <Selo tom={SOLVER_STATUS_META[simulacao.solver_status]?.tom ?? "neutro"}>
+                {SOLVER_STATUS_META[simulacao.solver_status]?.rotulo ?? simulacao.solver_status}
+              </Selo>
+            ) : (
+              <p className={styles.valor}>—</p>
+            )}
             <p className={styles.rotulo}>
               {simulacao.solver_status
-                ? (QUALIDADE_SOLUCAO[simulacao.solver_status] ?? "Qualidade da solução")
+                ? (SOLVER_STATUS_META[simulacao.solver_status]?.descricao ?? "Qualidade da solução")
                 : "Qualidade da solução"}
             </p>
           </div>
@@ -158,6 +173,14 @@ export function PainelIndicadores({ simulacaoId, simulacao }: PainelIndicadoresP
       </Card>
 
       <Card titulo="Pesos do objetivo desta execução">
+        <BarraProporcional
+          papel="distribuicao"
+          segmentos={PESOS_META.map((meta) => ({
+            rotulo: meta.rotulo,
+            valor: cenario.pesos_objetivo[meta.chave],
+            cor: meta.cor,
+          }))}
+        />
         <ul className={styles.listaPesos}>
           {PESOS_META.map((meta) => (
             <li key={meta.chave}>
@@ -172,13 +195,22 @@ export function PainelIndicadores({ simulacaoId, simulacao }: PainelIndicadoresP
         {distribuicaoTipologia.size === 0 ? (
           <p className={styles.semDados}>Nenhuma turma foi sugerida nesta simulação.</p>
         ) : (
-          <ul className={styles.listaDistribuicao}>
+          <div className={styles.listaDistribuicao}>
             {[...distribuicaoTipologia.entries()].map(([nome, total]) => (
-              <li key={nome}>
-                {nome}: {total} turma(s)
-              </li>
+              <div key={nome} className={styles.linhaDistribuicao}>
+                <div className={styles.linhaDistribuicaoTexto}>
+                  <span>{nome}</span>
+                  <span>{total} turma(s)</span>
+                </div>
+                <BarraProporcional
+                  tamanho="compacta"
+                  papel="distribuicao"
+                  maximo={Math.max(...distribuicaoTipologia.values())}
+                  segmentos={[{ rotulo: nome, valor: total, cor: "primaria" }]}
+                />
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </Card>
 

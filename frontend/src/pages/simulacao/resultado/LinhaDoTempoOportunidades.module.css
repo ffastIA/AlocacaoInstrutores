@@ -1,0 +1,86 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.raias {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+}
+
+.grade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(10rem + var(--space-3));
+  right: 0;
+}
+
+.linhaGrade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.raia {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rotuloRaia {
+  flex: 0 0 10rem;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: break-word;
+}
+
+.trilhaRaia {
+  position: relative;
+  flex: 1 1 auto;
+  height: 1.75rem;
+}
+
+.marcador {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+}
+
+.marcador:hover .ponto {
+  filter: brightness(1.1);
+}
+
+.ponto {
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+
+.pontoAlternativa {
+  box-shadow: 0 0 0 2px var(--color-warning);
+}
+
+.legendaEixo {
+  display: flex;
+  justify-content: space-between;
+  margin-left: calc(10rem + var(--space-3));
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}

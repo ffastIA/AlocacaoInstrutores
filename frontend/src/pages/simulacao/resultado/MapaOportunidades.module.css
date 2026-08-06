@@ -61,11 +61,6 @@
   text-decoration: underline;
 }
 
-.marcaAlternativa {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
 .semSelecao {
   color: var(--color-text-secondary);
 }

@@ -21,6 +21,7 @@ import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
 import type { ColunaTabela } from "../../components/Table";
 import { TextField } from "../../components/TextField";
+import { formatarData } from "../../utils/data";
 import styles from "./SituacaoAtualPage.module.css";
 
 const MODALIDADES: { valor: Modalidade; rotulo: string }[] = [
@@ -210,14 +211,14 @@ export function SituacaoAtualPage() {
       titulo: "Início",
       ordenavel: true,
       valorOrdenacao: (t) => t.data_inicio,
-      renderizar: (t) => t.data_inicio,
+      renderizar: (t) => formatarData(t.data_inicio),
     },
     {
       chave: "data_fim",
       titulo: "Término previsto",
       ordenavel: true,
       valorOrdenacao: (t) => t.data_fim_prevista,
-      renderizar: (t) => t.data_fim_prevista,
+      renderizar: (t) => formatarData(t.data_fim_prevista),
     },
     {
       chave: "acoes",

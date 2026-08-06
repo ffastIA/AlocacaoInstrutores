@@ -7,6 +7,7 @@ import { Alert } from "../../components/Alert";
 import { EmptyState } from "../../components/EmptyState";
 import { Select } from "../../components/Select";
 import { Spinner } from "../../components/Spinner";
+import { formatarDataHora } from "../../utils/data";
 import styles from "./SeletorSimulacao.module.css";
 
 interface SeletorSimulacaoProps {
@@ -53,7 +54,7 @@ export function SeletorSimulacao({ onSelecionar }: SeletorSimulacaoProps) {
           { valor: "", rotulo: "Selecione…" },
           ...concluidas.map((s) => ({
             valor: String(s.id),
-            rotulo: `#${s.id} — ${cenarios.find((c) => c.id === s.cenario_id)?.nome ?? `cenário ${s.cenario_id}`} (${s.iniciado_em.slice(0, 16).replace("T", " ")})`,
+            rotulo: `#${s.id} — ${cenarios.find((c) => c.id === s.cenario_id)?.nome ?? `cenário ${s.cenario_id}`} (${formatarDataHora(s.iniciado_em)})`,
           })),
         ]}
         onChange={(e) => e.target.value && onSelecionar(Number(e.target.value))}

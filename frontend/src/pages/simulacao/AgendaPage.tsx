@@ -4,12 +4,15 @@ import { api } from "../../api/cliente";
 import { ApiError } from "../../api/erros";
 import type { AgendaItem, CapacidadeInstrutor, Projeto } from "../../api/types";
 import { Alert } from "../../components/Alert";
+import { BarraProporcional } from "../../components/BarraProporcional";
 import { EmptyState } from "../../components/EmptyState";
 import { Select } from "../../components/Select";
+import { Selo } from "../../components/Selo";
 import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
 import type { ColunaTabela } from "../../components/Table";
 import { useAcompanharSimulacao } from "../../hooks/useAcompanharSimulacao";
+import { formatarData } from "../../utils/data";
 import { SeletorSimulacao } from "./SeletorSimulacao";
 import styles from "./AgendaPage.module.css";
 
@@ -102,14 +105,25 @@ export function AgendaPage() {
       numerica: true,
       ordenavel: true,
       valorOrdenacao: (c) => c.utilizacao_percentual,
-      renderizar: (c) => `${c.utilizacao_percentual}%`,
+      renderizar: (c) => (
+        <div className={styles.celulaUtilizacao}>
+          <BarraProporcional
+            tamanho="compacta"
+            papel="medidor"
+            maximo={100}
+            rotulo="Utilização"
+            segmentos={[{ rotulo: "Utilização", valor: c.utilizacao_percentual, cor: "primaria" }]}
+          />
+          <span>{c.utilizacao_percentual}%</span>
+        </div>
+      ),
     },
     {
       chave: "primeira_data_livre",
       titulo: "Primeira data livre",
       ordenavel: true,
       valorOrdenacao: (c) => c.primeira_data_livre ?? "",
-      renderizar: (c) => c.primeira_data_livre ?? "Já disponível",
+      renderizar: (c) => (c.primeira_data_livre ? formatarData(c.primeira_data_livre) : "Já disponível"),
     },
   ];
 
@@ -166,14 +180,28 @@ export function AgendaPage() {
 
               <h2 className={styles.subtitulo}>{instrutorAtual?.instrutor_nome}</h2>
               {instrutorAtual && (
-                <p className={styles.resumo}>
-                  {instrutorAtual.utilizacao_percentual}% de utilização ·{" "}
-                  {instrutorAtual.slots_ocupados} de {instrutorAtual.slots_disponiveis} slots
-                  ocupados ·{" "}
-                  {instrutorAtual.primeira_data_livre
-                    ? `livre a partir de ${instrutorAtual.primeira_data_livre}`
-                    : "já disponível"}
-                </p>
+                <div className={styles.resumoUtilizacao}>
+                  <BarraProporcional
+                    papel="medidor"
+                    maximo={100}
+                    rotulo="Utilização"
+                    segmentos={[
+                      {
+                        rotulo: "Utilização",
+                        valor: instrutorAtual.utilizacao_percentual,
+                        cor: "primaria",
+                      },
+                    ]}
+                  />
+                  <p className={styles.resumo}>
+                    {instrutorAtual.utilizacao_percentual}% de utilização ·{" "}
+                    {instrutorAtual.slots_ocupados} de {instrutorAtual.slots_disponiveis} slots
+                    ocupados ·{" "}
+                    {instrutorAtual.primeira_data_livre
+                      ? `livre a partir de ${formatarData(instrutorAtual.primeira_data_livre)}`
+                      : "já disponível"}
+                  </p>
+                </div>
               )}
 
               {agenda === null ? (
@@ -187,18 +215,13 @@ export function AgendaPage() {
                 <ul className={styles.listaAgenda}>
                   {agenda.map((item, indice) => (
                     <li key={indice} className={styles.itemAgenda}>
-                      <span
-                        className={
-                          item.origem === "em_andamento"
-                            ? styles.marcaAndamento
-                            : styles.marcaSugerida
-                        }
-                      >
+                      <Selo tom={item.origem === "em_andamento" ? "info" : "primaria"}>
                         {item.origem === "em_andamento" ? "Em andamento" : "Sugerida"}
-                      </span>
+                      </Selo>
                       <span>
                         {item.tipologia_nome} — {ROTULO_MODALIDADE[item.modalidade]} —{" "}
-                        {ROTULO_TURNO[item.turno]} — {item.data_inicio} a {item.data_fim}
+                        {ROTULO_TURNO[item.turno]} — {formatarData(item.data_inicio)} a{" "}
+                        {formatarData(item.data_fim)}
                       </span>
                     </li>
                   ))}

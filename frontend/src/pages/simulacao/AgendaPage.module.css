@@ -55,10 +55,28 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.resumoUtilizacao {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 20rem;
+}
+
 .resumo {
   margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.celulaUtilizacao {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.celulaUtilizacao > :first-child {
+  min-width: 5rem;
 }
 
 .listaAgenda {
@@ -78,23 +96,4 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
-}
-
-.marcaAndamento,
-.marcaSugerida {
-  flex-shrink: 0;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-}
-
-.marcaAndamento {
-  background: var(--color-info-subtle);
-  color: var(--color-info);
-}
-
-.marcaSugerida {
-  background: var(--color-primary-subtle);
-  color: var(--color-primary);
 }

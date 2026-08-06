@@ -1,0 +1,28 @@
+.container {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-border);
+}
+
+.padrao {
+  height: var(--space-2);
+}
+
+.compacta {
+  height: 4px;
+}
+
+.segmento {
+  min-width: 2px;
+  border-radius: var(--radius-full);
+}
+
+.trilha {
+  min-width: 2px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
