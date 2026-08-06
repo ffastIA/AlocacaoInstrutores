@@ -1,0 +1,25 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-16);
+  text-align: center;
+}
+
+.codigo {
+  margin: 0;
+  font-size: 3rem;
+  color: var(--color-text-muted);
+}
+
+.mensagem {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.link {
+  color: var(--color-primary);
+  font-weight: var(--font-weight-medium);
+}

@@ -1,0 +1,9 @@
+.faixa {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.faixa > * {
+  flex: 1 1 10rem;
+}

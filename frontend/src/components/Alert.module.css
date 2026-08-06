@@ -1,0 +1,65 @@
+.aviso {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: var(--font-size-sm);
+}
+
+.icone {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  font-weight: var(--font-weight-bold);
+}
+
+.titulo {
+  margin: 0 0 var(--space-1);
+  font-weight: var(--font-weight-semibold);
+}
+
+.mensagem {
+  color: var(--color-text-secondary);
+}
+
+.info {
+  background: var(--color-info-subtle);
+  border-color: var(--color-info);
+}
+.info .icone {
+  background: var(--color-info);
+  color: var(--color-text-on-primary);
+}
+
+.sucesso {
+  background: var(--color-success-subtle);
+  border-color: var(--color-success);
+}
+.sucesso .icone {
+  background: var(--color-success);
+  color: var(--color-text-on-primary);
+}
+
+.alerta {
+  background: var(--color-warning-subtle);
+  border-color: var(--color-warning);
+}
+.alerta .icone {
+  background: var(--color-warning);
+  color: var(--color-text-on-primary);
+}
+
+.erro {
+  background: var(--color-danger-subtle);
+  border-color: var(--color-danger);
+}
+.erro .icone {
+  background: var(--color-danger);
+  color: var(--color-text-on-primary);
+}

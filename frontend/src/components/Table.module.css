@@ -1,0 +1,66 @@
+/* A rolagem horizontal fica contida aqui — o corpo da página nunca rola
+   lateralmente por causa de uma tabela larga. */
+.container {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.cabecalho {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.botaoOrdenar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.indicadorOrdenacao {
+  font-size: 0.6rem;
+  width: 0.7rem;
+  display: inline-block;
+}
+
+.tabela tbody tr {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabela tbody tr:last-child {
+  border-bottom: none;
+}
+
+.tabela tbody tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.tabela td {
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text);
+}
+
+.numerica {
+  text-align: right;
+}
