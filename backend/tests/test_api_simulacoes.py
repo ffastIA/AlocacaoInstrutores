@@ -20,8 +20,7 @@ def base_com_instrutor(client: TestClient) -> TestClient:
         client,
         "/importar/instrutores",
         planilha_instrutores(
-            [["Maria Silva", "Jovem Digital", "manha", "4", "2;3;4;5",
-              "Programação;Pixel Art"]]
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;3;4;5", "Programação;Pixel Art"]]
         ),
     )
     _importar(
@@ -90,7 +89,7 @@ class TestDisparo:
             base_com_instrutor,
             "/importar/instrutores",
             planilha_instrutores(
-                [["João Souza", "Jovem Digital", "noite", "3", "2;4", "Robótica"]]
+                [["João Souza", "Jovem Digital", "noite", "2;4", "Robótica"]]
             ),
         )
         cenario = base_com_instrutor.post(
@@ -147,9 +146,7 @@ class TestPersistenciaDoResultado:
             "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
         ).json()
 
-        turmas = base_com_instrutor.get(
-            f"/simulacoes/{disparo['id']}/turmas-sugeridas"
-        ).json()
+        turmas = base_com_instrutor.get(f"/simulacoes/{disparo['id']}/turmas-sugeridas").json()
 
         assert len(turmas) > 0
         primeira = turmas[0]
@@ -178,7 +175,7 @@ class TestPersistenciaDoResultado:
             client,
             "/importar/instrutores",
             planilha_instrutores(
-                [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"]]
+                [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"]]
             ),
         )
         _importar(
@@ -202,9 +199,7 @@ class TestPersistenciaDoResultado:
             },
         ).json()
 
-        disparo = client.post(
-            "/simulacoes/executar", json={"cenario_id": cenario["id"]}
-        ).json()
+        disparo = client.post("/simulacoes/executar", json={"cenario_id": cenario["id"]}).json()
         consulta = client.get(f"/simulacoes/{disparo['id']}").json()
 
         assert consulta["status"] == "concluida"
@@ -224,9 +219,7 @@ class TestOportunidades:
             "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
         ).json()
 
-        oportunidades = base_com_instrutor.get(
-            f"/simulacoes/{disparo['id']}/oportunidades"
-        ).json()
+        oportunidades = base_com_instrutor.get(f"/simulacoes/{disparo['id']}/oportunidades").json()
 
         tipologias_no_leque = {o["tipologia_nome"] for o in oportunidades}
         assert tipologias_no_leque == {"Programação", "Pixel Art"}
@@ -238,9 +231,7 @@ class TestOportunidades:
             "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
         ).json()
 
-        oportunidades = base_com_instrutor.get(
-            f"/simulacoes/{disparo['id']}/oportunidades"
-        ).json()
+        oportunidades = base_com_instrutor.get(f"/simulacoes/{disparo['id']}/oportunidades").json()
 
         datas = [o["data_inicio"] for o in oportunidades]
         assert datas == sorted(datas)
@@ -253,9 +244,7 @@ class TestOportunidades:
         ).json()
         tipologia_id = next(
             o["tipologia_id"]
-            for o in base_com_instrutor.get(
-                f"/simulacoes/{disparo['id']}/oportunidades"
-            ).json()
+            for o in base_com_instrutor.get(f"/simulacoes/{disparo['id']}/oportunidades").json()
         )
 
         filtradas = base_com_instrutor.get(
@@ -274,9 +263,7 @@ class TestAgenda:
             "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
         ).json()
 
-        agenda = base_com_instrutor.get(
-            f"/simulacoes/{disparo['id']}/agenda/{instrutor_id}"
-        ).json()
+        agenda = base_com_instrutor.get(f"/simulacoes/{disparo['id']}/agenda/{instrutor_id}").json()
 
         assert len(agenda) > 0
         assert all(item["origem"] == "sugerida" for item in agenda)  # sem turma em andamento
@@ -293,6 +280,42 @@ class TestAgenda:
         assert resposta.status_code == 404
 
 
+class TestCapacidadeInstrutores:
+    def test_lista_utilizacao_de_cada_instrutor(
+        self, base_com_instrutor: TestClient, cenario_basico: dict
+    ) -> None:
+        disparo = base_com_instrutor.post(
+            "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
+        ).json()
+
+        capacidade = base_com_instrutor.get(
+            f"/simulacoes/{disparo['id']}/capacidade-instrutores"
+        ).json()
+
+        assert len(capacidade) == 1
+        item = capacidade[0]
+        assert item["instrutor_nome"] == "Maria Silva"
+        assert item["slots_disponiveis"] > 0
+        assert 0 <= item["utilizacao_percentual"] <= 100
+        assert item["primeira_data_livre"] is not None
+        assert "manha_1" in item["primeira_data_livre_por_slot"]
+
+    def test_filtra_por_projeto(self, base_com_instrutor: TestClient, cenario_basico: dict) -> None:
+        disparo = base_com_instrutor.post(
+            "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
+        ).json()
+        outro_projeto = base_com_instrutor.post("/projetos", json={"nome": "Outro Projeto"}).json()
+
+        vazio = base_com_instrutor.get(
+            f"/simulacoes/{disparo['id']}/capacidade-instrutores?projeto_id={outro_projeto['id']}"
+        ).json()
+
+        assert vazio == []
+
+    def test_simulacao_inexistente_retorna_404(self, client: TestClient) -> None:
+        assert client.get("/simulacoes/9999/capacidade-instrutores").status_code == 404
+
+
 class TestReprodutibilidade:
     def test_editar_cenario_nao_altera_simulacao_ja_executada(
         self, base_com_instrutor: TestClient, cenario_basico: dict
@@ -300,9 +323,9 @@ class TestReprodutibilidade:
         disparo = base_com_instrutor.post(
             "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
         ).json()
-        objetivo_original = base_com_instrutor.get(
-            f"/simulacoes/{disparo['id']}"
-        ).json()["objetivo_valor"]
+        objetivo_original = base_com_instrutor.get(f"/simulacoes/{disparo['id']}").json()[
+            "objetivo_valor"
+        ]
         turmas_originais = base_com_instrutor.get(
             f"/simulacoes/{disparo['id']}/turmas-sugeridas"
         ).json()
@@ -348,7 +371,7 @@ class TestReprodutibilidade:
                 "instrutor_id": instrutor_id,
                 "tipologia_id": tipologia_id,
                 "modalidade": "regular_seg_qua",
-                "turno": "manha",
+                "turno": "manha_1",
                 "data_inicio": "2026-09-01",
                 "data_fim_prevista": "2026-10-01",
             },
@@ -387,9 +410,7 @@ class TestComparacao:
             "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
         ).json()
 
-        corpo = base_com_instrutor.get(
-            f"/simulacoes/comparar?ids={d1['id']},{d2['id']}"
-        ).json()
+        corpo = base_com_instrutor.get(f"/simulacoes/comparar?ids={d1['id']},{d2['id']}").json()
 
         assert corpo["itens"][0]["pesos_objetivo"]["maximizar_aproveitamento"] == 1.0
 
@@ -429,9 +450,7 @@ class TestComparacao:
             "/simulacoes/executar", json={"cenario_id": cenario_longo["id"]}
         ).json()
 
-        corpo = base_com_instrutor.get(
-            f"/simulacoes/comparar?ids={d1['id']},{d2['id']}"
-        ).json()
+        corpo = base_com_instrutor.get(f"/simulacoes/comparar?ids={d1['id']},{d2['id']}").json()
 
         assert corpo["periodos_divergentes"] is True
 
@@ -497,9 +516,7 @@ class TestExportacao:
         resposta = base_com_instrutor.get(f"/simulacoes/{disparo['id']}/exportar")
 
         assert resposta.status_code == 200
-        assert resposta.headers["content-type"].startswith(
-            "application/vnd.openxmlformats"
-        )
+        assert resposta.headers["content-type"].startswith("application/vnd.openxmlformats")
         assert f"simulacao_{disparo['id']}_" in resposta.headers["content-disposition"]
 
     def test_planilha_tem_turmas_e_indicadores(
@@ -551,15 +568,9 @@ class TestConsultas:
         assert client.get("/simulacoes/9999/turmas-sugeridas").status_code == 404
         assert client.get("/simulacoes/9999/kpis").status_code == 404
 
-    def test_lista_historico(
-        self, base_com_instrutor: TestClient, cenario_basico: dict
-    ) -> None:
-        base_com_instrutor.post(
-            "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
-        )
-        base_com_instrutor.post(
-            "/simulacoes/executar", json={"cenario_id": cenario_basico["id"]}
-        )
+    def test_lista_historico(self, base_com_instrutor: TestClient, cenario_basico: dict) -> None:
+        base_com_instrutor.post("/simulacoes/executar", json={"cenario_id": cenario_basico["id"]})
+        base_com_instrutor.post("/simulacoes/executar", json={"cenario_id": cenario_basico["id"]})
 
         historico = base_com_instrutor.get("/simulacoes").json()
 
@@ -597,9 +608,7 @@ class TestConsultas:
         base_com_instrutor.post("/simulacoes/executar", json={"cenario_id": cenario_a["id"]})
         base_com_instrutor.post("/simulacoes/executar", json={"cenario_id": cenario_b["id"]})
 
-        historico_a = base_com_instrutor.get(
-            f"/simulacoes?cenario_id={cenario_a['id']}"
-        ).json()
+        historico_a = base_com_instrutor.get(f"/simulacoes?cenario_id={cenario_a['id']}").json()
 
         assert len(historico_a) == 1
         assert historico_a[0]["cenario_id"] == cenario_a["id"]

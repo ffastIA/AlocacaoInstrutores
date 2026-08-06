@@ -33,7 +33,6 @@ CABECALHOS_INSTRUTORES = [
     "nome",
     "projeto",
     "turnos",
-    "carga_horaria_turno",
     "dias_semana",
     "tipologias",
 ]

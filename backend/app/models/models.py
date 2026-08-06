@@ -141,25 +141,20 @@ class Instrutor(Base):
 
 
 class InstrutorTurno(Base):
-    """Disponibilidade do instrutor em um turno, com sua capacidade horária.
+    """Disponibilidade do instrutor num slot de turno.
 
-    A capacidade é por turno porque o limite de 4 turmas/dia só é coerente se
-    mais de uma turma couber no mesmo turno: duas de 2h cabem num turno de 4h,
-    mas não num de 3h.
+    Cada slot (manha_1, manha_2, tarde_1, tarde_2, noite) comporta no máximo
+    uma turma por vez — ocupação binária, sem carga horária declarada.
     """
 
     __tablename__ = "instrutor_turno"
-    __table_args__ = (
-        UniqueConstraint("instrutor_id", "turno", name="uq_instrutor_turno"),
-        CheckConstraint("carga_horaria_horas > 0", name="ck_instrutor_turno_carga_positiva"),
-    )
+    __table_args__ = (UniqueConstraint("instrutor_id", "turno", name="uq_instrutor_turno"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     instrutor_id: Mapped[int] = mapped_column(
         ForeignKey("instrutores.id", ondelete="CASCADE"), nullable=False, index=True
     )
     turno: Mapped[Turno] = mapped_column(_enum(Turno), nullable=False)
-    carga_horaria_horas: Mapped[float] = mapped_column(Float, nullable=False)
 
     instrutor: Mapped[Instrutor] = relationship(back_populates="turnos")
 
@@ -447,13 +442,13 @@ class ResultadoKpis(Base):
     )
     total_turmas_sugeridas: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     horas_formacao_total: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    horas_disponiveis_total: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    slots_disponiveis_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     pct_ociosidade: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     indice_balanceamento_carga: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     indice_balanceamento_tipologia: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0
     )
-    horas_reposicao_sexta: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    slots_reposicao_sexta: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     simulacao: Mapped[Simulacao] = relationship(back_populates="kpis")
 
@@ -506,9 +501,15 @@ class SnapshotCapacidade(Base):
     instrutor_id: Mapped[int] = mapped_column(
         ForeignKey("instrutores.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    horas_disponiveis: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    horas_alocadas: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    slots_disponiveis: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    slots_ocupados: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     primeira_data_livre: Mapped[date | None] = mapped_column(Date)
+    # JSON simples ({"manha_1": "2026-08-31", ...}) em vez de tabela de junção
+    # — mesma simplificação já usada em OportunidadeSimulacao.instrutor_ids_csv
+    # para dado que só é lido, nunca consultado por slot individualmente.
+    primeira_data_livre_por_slot_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="{}"
+    )
 
     simulacao: Mapped[Simulacao] = relationship(back_populates="snapshots")
     instrutor: Mapped[Instrutor] = relationship()

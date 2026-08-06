@@ -46,51 +46,37 @@ class TestParseLista:
 
 
 class TestParseTurnos:
-    def test_formato_posicional(self) -> None:
-        assert parse_turnos("manha;noite", "4;3") == [(Turno.MANHA, 4.0), (Turno.NOITE, 3.0)]
-
-    def test_formato_explicito_dispensa_coluna_de_carga(self) -> None:
-        assert parse_turnos("manha:4;tarde:4", "") == [(Turno.MANHA, 4.0), (Turno.TARDE, 4.0)]
+    def test_multiplos_slots(self) -> None:
+        assert parse_turnos("manha_1;noite") == [Turno.MANHA_1, Turno.NOITE]
 
     def test_turno_unico(self) -> None:
-        assert parse_turnos("noite", "3") == [(Turno.NOITE, 3.0)]
+        assert parse_turnos("noite") == [Turno.NOITE]
 
     def test_aceita_acento_e_maiuscula(self) -> None:
-        assert parse_turnos("Manhã;Tarde", "4;4") == [(Turno.MANHA, 4.0), (Turno.TARDE, 4.0)]
-
-    def test_aceita_virgula_decimal(self) -> None:
-        assert parse_turnos("manha", "3,5") == [(Turno.MANHA, 3.5)]
-
-    def test_listas_de_tamanhos_diferentes_sao_rejeitadas(self) -> None:
-        """Inferir a carga faltante produziria capacidade errada sem sinal visível."""
-        with pytest.raises(ValorInvalidoError, match="mesma quantidade"):
-            parse_turnos("manha;tarde", "4")
-
-    def test_carga_ausente_no_formato_posicional_e_rejeitada(self) -> None:
-        with pytest.raises(ValorInvalidoError, match="não informada"):
-            parse_turnos("manha;tarde", "")
+        assert parse_turnos("Manhã_1;Tarde_1") == [Turno.MANHA_1, Turno.TARDE_1]
 
     def test_turno_invalido_e_rejeitado(self) -> None:
         with pytest.raises(ValorInvalidoError, match="Turno inválido"):
-            parse_turnos("madrugada", "4")
+            parse_turnos("madrugada")
 
-    def test_carga_zero_e_rejeitada(self) -> None:
-        with pytest.raises(ValorInvalidoError, match="maior que zero"):
-            parse_turnos("manha", "0")
+    def test_turno_sem_slot_e_rejeitado(self) -> None:
+        """O valor antigo 'manha' (sem slot) não é mais aceito."""
+        with pytest.raises(ValorInvalidoError, match="Turno inválido"):
+            parse_turnos("manha")
 
     def test_turno_duplicado_e_rejeitado(self) -> None:
         with pytest.raises(ValorInvalidoError, match="mais de uma vez"):
-            parse_turnos("manha;manha", "4;3")
+            parse_turnos("manha_1;manha_1")
 
     def test_turnos_vazios_sao_rejeitados(self) -> None:
         with pytest.raises(ValorInvalidoError, match="Nenhum turno"):
-            parse_turnos("", "4")
+            parse_turnos("")
 
 
 class TestParseTurno:
     @pytest.mark.parametrize(
         ("entrada", "esperado"),
-        [("manha", Turno.MANHA), ("Manhã", Turno.MANHA), ("NOITE", Turno.NOITE)],
+        [("manha_1", Turno.MANHA_1), ("Manhã_2", Turno.MANHA_2), ("NOITE", Turno.NOITE)],
     )
     def test_interpreta(self, entrada: str, esperado: Turno) -> None:
         assert parse_turno(entrada) == esperado

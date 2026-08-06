@@ -7,7 +7,7 @@
  * bug silencioso em runtime.
  */
 
-export type Turno = "manha" | "tarde" | "noite";
+export type Turno = "manha_1" | "manha_2" | "tarde_1" | "tarde_2" | "noite";
 
 export type Modalidade = "regular_seg_qua" | "regular_ter_qui" | "intensiva_seg_qui";
 
@@ -82,17 +82,12 @@ export interface TipologiaPendente {
   total_instrutores: number;
 }
 
-export interface TurnoDisponivel {
-  turno: Turno;
-  carga_horaria_horas: number;
-}
-
 export interface Instrutor {
   id: number;
   nome: string;
   projeto_id: number;
   projeto_nome: string;
-  turnos: TurnoDisponivel[];
+  turnos: Turno[];
   dias_semana: number[];
   tipologias: string[];
   observacao: string | null;
@@ -102,7 +97,7 @@ export interface Instrutor {
 export interface InstrutorIn {
   nome: string;
   projeto_id: number;
-  turnos: TurnoDisponivel[];
+  turnos: Turno[];
   dias_semana: number[];
   tipologia_ids: number[];
   observacao: string | null;
@@ -179,6 +174,16 @@ export interface Cenario {
   criado_em: string;
 }
 
+export interface CenarioIn {
+  nome: string;
+  descricao: string | null;
+  periodo_de: string;
+  periodo_ate: string;
+  projeto_ids: number[];
+  permitir_compartilhamento: boolean;
+  pesos_objetivo: PesosObjetivo;
+}
+
 // --------------------------------------------------------------------------
 // Simulações
 // --------------------------------------------------------------------------
@@ -221,11 +226,23 @@ export interface TurmaSugerida {
 export interface Kpis {
   total_turmas_sugeridas: number;
   horas_formacao_total: number;
-  horas_disponiveis_total: number;
+  slots_disponiveis_total: number;
   pct_ociosidade: number;
   indice_balanceamento_carga: number;
   indice_balanceamento_tipologia: number;
-  horas_reposicao_sexta: number;
+  slots_reposicao_sexta: number;
+}
+
+export interface CapacidadeInstrutor {
+  instrutor_id: number;
+  instrutor_nome: string;
+  projeto_id: number;
+  projeto_nome: string;
+  slots_disponiveis: number;
+  slots_ocupados: number;
+  utilizacao_percentual: number;
+  primeira_data_livre: string | null;
+  primeira_data_livre_por_slot: Partial<Record<Turno, string>>;
 }
 
 export interface Oportunidade {

@@ -22,14 +22,14 @@ CONFIG_RAPIDA = ConfiguracaoSolver(time_limit_seg=10, num_workers=4, seed=42)
 def _instrutor(
     id: int,
     projeto_id: int = 1,
-    turnos: dict[Turno, float] | None = None,
+    turnos: frozenset[Turno] | None = None,
     dias_semana: frozenset[int] = frozenset({2, 3, 4, 5}),
     tipologia_ids: frozenset[int] = frozenset({1}),
 ) -> InstrutorDados:
     return InstrutorDados(
         id=id,
         projeto_id=projeto_id,
-        turnos=turnos or {Turno.MANHA: 4.0},
+        turnos=turnos or frozenset({Turno.MANHA_1}),
         dias_semana=dias_semana,
         tipologia_ids=tipologia_ids,
     )
@@ -83,23 +83,21 @@ def _executar(
 class TestOciosidade:
     def test_capacidade_totalmente_ocupada_tem_ociosidade_zero(self) -> None:
         """Instrutor com turma em andamento cobrindo o período inteiro."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,
         )
-        metricas, _, _ = _executar(
-            [instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento]
-        )
+        metricas, _, _ = _executar([instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento])
 
         assert metricas.pct_ociosidade == 0.0
 
     def test_capacidade_parcialmente_ocupada(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         metricas, resultado, _ = _executar(
             [instrutor], [_tipologia(1, carga_total=8, horas_encontro=4)]
         )
@@ -117,25 +115,25 @@ class TestPrimeiraDataLivre:
 
     def test_instrutor_com_turma_em_andamento_libera_apos_o_termino(self) -> None:
         fim_turma = date(2026, 10, 15)
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=fim_turma,
         )
-        metricas, _, _ = _executar(
-            [instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento]
-        )
+        metricas, _, _ = _executar([instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento])
 
         assert metricas.primeira_data_livre[1] == fim_turma + timedelta(days=1)
 
 
 class TestDistribuicaoPorTipologia:
     def test_conta_turmas_por_tipologia(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
         metricas, resultado, _ = _executar(
             [instrutor],
             [
@@ -151,7 +149,9 @@ class TestDistribuicaoPorTipologia:
         """Regressão: tipologia com zero turmas selecionadas não pode sumir do
         cálculo — senão o índice de desequilíbrio reportaria "equilíbrio
         perfeito" quando na verdade uma tipologia inteira ficou de fora."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
         pesos_so_aproveitamento = PesosObjetivo(1.0, 0.0, 0.0, 0.0)
         metricas, resultado, candidatas = _executar(
             [instrutor],
@@ -204,17 +204,17 @@ class TestLequeDeOportunidades:
 
 
 class TestCapacidadeReposicao:
-    def test_instrutor_com_sexta_disponivel_gera_horas_de_reposicao(self) -> None:
+    def test_instrutor_com_sexta_disponivel_gera_slots_de_reposicao(self) -> None:
         instrutor = _instrutor(1, dias_semana=frozenset({2, 3, 4, 5, 6}))
         metricas, _, _ = _executar([instrutor], [_tipologia(1)])
 
-        assert metricas.horas_reposicao_sexta > 0
+        assert metricas.slots_reposicao_sexta > 0
 
     def test_instrutor_sem_sexta_nao_gera_reposicao(self) -> None:
         instrutor = _instrutor(1, dias_semana=frozenset({2, 3, 4, 5}))
         metricas, _, _ = _executar([instrutor], [_tipologia(1)])
 
-        assert metricas.horas_reposicao_sexta == 0
+        assert metricas.slots_reposicao_sexta == 0
 
 
 class TestMetadados:
@@ -231,18 +231,16 @@ class TestMetadados:
 
 class TestUtilizacaoPorInstrutor:
     def test_utilizacao_percentual_calculada_corretamente(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,
         )
-        metricas, _, _ = _executar(
-            [instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento]
-        )
+        metricas, _, _ = _executar([instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento])
 
         utilizacao = metricas.utilizacao_por_instrutor[0]
         assert utilizacao.utilizacao_percentual == 100.0

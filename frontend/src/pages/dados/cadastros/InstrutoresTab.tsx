@@ -7,7 +7,6 @@ import { Alert } from "../../../components/Alert";
 import { Button } from "../../../components/Button";
 import { EmptyState } from "../../../components/EmptyState";
 import { Modal } from "../../../components/Modal";
-import { NumberField } from "../../../components/NumberField";
 import { Select } from "../../../components/Select";
 import { Spinner } from "../../../components/Spinner";
 import { Table } from "../../../components/Table";
@@ -17,10 +16,16 @@ import { CheckboxGrupo } from "./CheckboxGrupo";
 import styles from "./InstrutoresTab.module.css";
 
 const TURNOS: { valor: Turno; rotulo: string }[] = [
-  { valor: "manha", rotulo: "Manhã" },
-  { valor: "tarde", rotulo: "Tarde" },
+  { valor: "manha_1", rotulo: "Manhã 1" },
+  { valor: "manha_2", rotulo: "Manhã 2" },
+  { valor: "tarde_1", rotulo: "Tarde 1" },
+  { valor: "tarde_2", rotulo: "Tarde 2" },
   { valor: "noite", rotulo: "Noite" },
 ];
+
+const ROTULO_TURNO: Record<Turno, string> = Object.fromEntries(
+  TURNOS.map((t) => [t.valor, t.rotulo]),
+) as Record<Turno, string>;
 
 const DIAS: { valor: string; rotulo: string }[] = [
   { valor: "2", rotulo: "Segunda" },
@@ -33,7 +38,7 @@ const DIAS: { valor: string; rotulo: string }[] = [
 interface FormState {
   nome: string;
   projeto_id: string;
-  turnos: Record<Turno, number | null>;
+  turnos: string[];
   dias_semana: string[];
   tipologia_ids: string[];
   observacao: string;
@@ -44,7 +49,7 @@ function formVazio(): FormState {
   return {
     nome: "",
     projeto_id: "",
-    turnos: { manha: null, tarde: null, noite: null },
+    turnos: [],
     dias_semana: [],
     tipologia_ids: [],
     observacao: "",
@@ -53,13 +58,11 @@ function formVazio(): FormState {
 }
 
 function formDeInstrutor(instrutor: Instrutor, tipologias: Tipologia[]): FormState {
-  const turnos: Record<Turno, number | null> = { manha: null, tarde: null, noite: null };
-  for (const t of instrutor.turnos) turnos[t.turno] = t.carga_horaria_horas;
   const idsPorNome = new Map(tipologias.map((t) => [t.nome, String(t.id)]));
   return {
     nome: instrutor.nome,
     projeto_id: String(instrutor.projeto_id),
-    turnos,
+    turnos: instrutor.turnos,
     dias_semana: instrutor.dias_semana.map(String),
     tipologia_ids: instrutor.tipologias
       .map((nome) => idsPorNome.get(nome))
@@ -118,6 +121,15 @@ export function InstrutoresTab() {
     setErroForm(null);
   }
 
+  function alternarTurno(valor: string): void {
+    setForm((atual) => ({
+      ...atual,
+      turnos: atual.turnos.includes(valor)
+        ? atual.turnos.filter((t) => t !== valor)
+        : [...atual.turnos, valor],
+    }));
+  }
+
   function alternarDia(valor: string): void {
     setForm((atual) => ({
       ...atual,
@@ -140,11 +152,6 @@ export function InstrutoresTab() {
     if (instrutorEditando === null) return;
     setErroForm(null);
 
-    const turnosPreenchidos = TURNOS.filter((t) => form.turnos[t.valor] !== null).map((t) => ({
-      turno: t.valor,
-      carga_horaria_horas: form.turnos[t.valor] as number,
-    }));
-
     if (!form.nome.trim()) {
       setErroForm("Informe o nome do instrutor.");
       return;
@@ -153,8 +160,8 @@ export function InstrutoresTab() {
       setErroForm("Selecione o projeto.");
       return;
     }
-    if (turnosPreenchidos.length === 0) {
-      setErroForm("Informe a carga horária de ao menos um turno.");
+    if (form.turnos.length === 0) {
+      setErroForm("Selecione ao menos um slot de turno.");
       return;
     }
     if (form.dias_semana.length === 0) {
@@ -169,7 +176,7 @@ export function InstrutoresTab() {
     const dados: InstrutorIn = {
       nome: form.nome.trim(),
       projeto_id: Number(form.projeto_id),
-      turnos: turnosPreenchidos,
+      turnos: form.turnos as Turno[],
       dias_semana: form.dias_semana.map(Number),
       tipologia_ids: form.tipologia_ids.map(Number),
       observacao: form.observacao.trim() || null,
@@ -204,7 +211,7 @@ export function InstrutoresTab() {
     {
       chave: "turnos",
       titulo: "Turnos",
-      renderizar: (i) => i.turnos.map((t) => `${t.turno} (${t.carga_horaria_horas}h)`).join(", "),
+      renderizar: (i) => i.turnos.map((t) => ROTULO_TURNO[t]).join(", "),
     },
     {
       chave: "dias",
@@ -271,40 +278,12 @@ export function InstrutoresTab() {
             onChange={(e) => setForm((f) => ({ ...f, projeto_id: e.target.value }))}
           />
 
-          <fieldset className={styles.turnos}>
-            <legend className={styles.rotuloGrupo}>Turnos e carga horária</legend>
-            {TURNOS.map((t) => (
-              <div key={t.valor} className={styles.linhaTurno}>
-                <label className={styles.opcaoTurno}>
-                  <input
-                    type="checkbox"
-                    checked={form.turnos[t.valor] !== null}
-                    onChange={() =>
-                      setForm((f) => ({
-                        ...f,
-                        turnos: {
-                          ...f.turnos,
-                          [t.valor]: f.turnos[t.valor] === null ? 4 : null,
-                        },
-                      }))
-                    }
-                  />
-                  {t.rotulo}
-                </label>
-                {form.turnos[t.valor] !== null && (
-                  <NumberField
-                    rotulo="Horas"
-                    value={form.turnos[t.valor] ?? ""}
-                    min={0.5}
-                    step={0.5}
-                    onChange={(valor) =>
-                      setForm((f) => ({ ...f, turnos: { ...f.turnos, [t.valor]: valor } }))
-                    }
-                  />
-                )}
-              </div>
-            ))}
-          </fieldset>
+          <CheckboxGrupo
+            rotulo="Slots de turno (manhã e tarde têm 2 cada; noite tem 1)"
+            opcoes={TURNOS}
+            selecionados={form.turnos}
+            onAlternar={alternarTurno}
+          />
 
           <CheckboxGrupo
             rotulo="Dias da semana"

@@ -5,6 +5,7 @@ imediatamente, sem bloquear o cliente. Usa sua própria sessão de banco: a
 sessão da requisição original já foi encerrada quando esta tarefa executa.
 """
 
+import json
 import logging
 import time
 from datetime import UTC, datetime
@@ -154,17 +155,17 @@ def _persistir_resultado(
             for encontro in candidata.calendario.encontros
         )
 
-    horas_disponiveis_total = sum(u.horas_disponiveis for u in metricas.utilizacao_por_instrutor)
+    slots_disponiveis_total = sum(u.slots_disponiveis for u in metricas.utilizacao_por_instrutor)
     db.add(
         ResultadoKpis(
             simulacao_id=simulacao.id,
             total_turmas_sugeridas=metricas.metadados.total_turmas_sugeridas,
             horas_formacao_total=metricas.metadados.horas_formacao_total,
-            horas_disponiveis_total=horas_disponiveis_total,
+            slots_disponiveis_total=slots_disponiveis_total,
             pct_ociosidade=metricas.pct_ociosidade,
             indice_balanceamento_carga=metricas.indice_balanceamento_carga,
             indice_balanceamento_tipologia=metricas.indice_balanceamento_tipologias,
-            horas_reposicao_sexta=metricas.horas_reposicao_sexta,
+            slots_reposicao_sexta=metricas.slots_reposicao_sexta,
         )
     )
 
@@ -172,9 +173,17 @@ def _persistir_resultado(
         SnapshotCapacidade(
             simulacao_id=simulacao.id,
             instrutor_id=u.instrutor_id,
-            horas_disponiveis=u.horas_disponiveis,
-            horas_alocadas=u.horas_alocadas,
+            slots_disponiveis=u.slots_disponiveis,
+            slots_ocupados=u.slots_alocados,
             primeira_data_livre=metricas.primeira_data_livre.get(u.instrutor_id),
+            primeira_data_livre_por_slot_json=json.dumps(
+                {
+                    turno.value: data.isoformat()
+                    for turno, data in metricas.primeira_data_livre_por_slot.get(
+                        u.instrutor_id, {}
+                    ).items()
+                }
+            ),
         )
         for u in metricas.utilizacao_por_instrutor
     )

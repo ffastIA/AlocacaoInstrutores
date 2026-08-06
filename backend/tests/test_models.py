@@ -33,8 +33,8 @@ def test_instrutor_com_turnos_dias_e_tipologias(db: Session) -> None:
 
     instrutor = Instrutor(nome="Maria Silva", projeto_id=projeto.id)
     instrutor.turnos = [
-        InstrutorTurno(turno=Turno.MANHA, carga_horaria_horas=4),
-        InstrutorTurno(turno=Turno.NOITE, carga_horaria_horas=3),
+        InstrutorTurno(turno=Turno.MANHA_1),
+        InstrutorTurno(turno=Turno.NOITE),
     ]
     instrutor.dias = [InstrutorDia(dia_semana=2), InstrutorDia(dia_semana=4)]
     instrutor.tipologias = [
@@ -48,9 +48,7 @@ def test_instrutor_com_turnos_dias_e_tipologias(db: Session) -> None:
     assert salvo is not None
     assert salvo.projeto.nome == "Jovem Digital"
 
-    # Cada turno guarda sua própria carga horária.
-    cargas = {t.turno: t.carga_horaria_horas for t in salvo.turnos}
-    assert cargas == {Turno.MANHA: 4, Turno.NOITE: 3}
+    assert {t.turno for t in salvo.turnos} == {Turno.MANHA_1, Turno.NOITE}
 
     assert sorted(d.dia_semana for d in salvo.dias) == [2, 4]
     assert sorted(v.tipologia.nome for v in salvo.tipologias) == ["Pixel Art", "Programação"]
@@ -79,8 +77,8 @@ def test_turno_duplicado_no_mesmo_instrutor_e_rejeitado(db: Session) -> None:
     projeto = _criar_projeto(db)
     instrutor = Instrutor(nome="Ana Costa", projeto_id=projeto.id)
     instrutor.turnos = [
-        InstrutorTurno(turno=Turno.MANHA, carga_horaria_horas=4),
-        InstrutorTurno(turno=Turno.MANHA, carga_horaria_horas=3),
+        InstrutorTurno(turno=Turno.MANHA_1),
+        InstrutorTurno(turno=Turno.MANHA_1),
     ]
     db.add(instrutor)
 

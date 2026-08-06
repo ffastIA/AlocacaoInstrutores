@@ -47,20 +47,13 @@ def importar_instrutores(
         resultado.erro_arquivo = str(exc)
         return resultado
 
-    tem_coluna_carga = planilha.tem_coluna("carga_horaria_turno")
-
-    processar_linhas(
-        db,
-        planilha.linhas,
-        lambda sessao, linha: _importar_linha(sessao, linha, tem_coluna_carga),
-        resultado,
-    )
+    processar_linhas(db, planilha.linhas, _importar_linha, resultado)
 
     _alertar_tipologias_pendentes(db, resultado)
     return resultado
 
 
-def _importar_linha(db: Session, linha: Linha, tem_coluna_carga: bool) -> str:
+def _importar_linha(db: Session, linha: Linha) -> str:
     nome = linha.texto("nome")
     if not nome:
         raise ValorInvalidoError("Nome do instrutor não informado")
@@ -69,10 +62,7 @@ def _importar_linha(db: Session, linha: Linha, tem_coluna_carga: bool) -> str:
     if not nome_projeto:
         raise ValorInvalidoError("Projeto não informado")
 
-    turnos = parse_turnos(
-        linha.texto("turnos"),
-        linha.texto("carga_horaria_turno") if tem_coluna_carga else "",
-    )
+    turnos = parse_turnos(linha.texto("turnos"))
     dias = parse_dias_semana(linha.texto("dias_semana"))
 
     nomes_tipologias = parse_lista(linha.texto("tipologias"))
@@ -99,9 +89,7 @@ def _importar_linha(db: Session, linha: Linha, tem_coluna_carga: bool) -> str:
         situacao = Resultado.ATUALIZADO
 
     instrutor.observacao = linha.texto("observacao") or None
-    instrutor.turnos = [
-        InstrutorTurno(turno=turno, carga_horaria_horas=carga) for turno, carga in turnos
-    ]
+    instrutor.turnos = [InstrutorTurno(turno=turno) for turno in turnos]
     instrutor.dias = [InstrutorDia(dia_semana=dia) for dia in dias]
     instrutor.tipologias = [InstrutorTipologia(tipologia_id=t.id) for t in tipologias]
 

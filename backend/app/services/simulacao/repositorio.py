@@ -26,7 +26,7 @@ def carregar_instrutores(db: Session, projeto_ids: list[int] | None) -> list[Ins
         InstrutorDados(
             id=i.id,
             projeto_id=i.projeto_id,
-            turnos={t.turno: t.carga_horaria_horas for t in i.turnos},
+            turnos=frozenset(t.turno for t in i.turnos),
             dias_semana=frozenset(d.dia_semana for d in i.dias),
             tipologia_ids=frozenset(v.tipologia_id for v in i.tipologias),
         )

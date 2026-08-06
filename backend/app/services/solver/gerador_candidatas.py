@@ -6,10 +6,10 @@ de início). Como o calendário de cada uma é determinístico (ver
 necessidade de o CP-SAT decidir datas.
 
 A poda acontece **aqui**, não como restrição do solver: uma combinação
-inelegível (tipologia não dominada, turno indisponível, dias incompatíveis,
-horas por encontro acima da capacidade do turno, turma que não cabe no
-período, ou que colide sozinha com uma turma em andamento) simplesmente não
-gera variável — reduzindo o modelo antes de o solver começar.
+inelegível (tipologia não dominada, slot de turno indisponível, dias
+incompatíveis, turma que não cabe no período, ou que colide sozinha com uma
+turma em andamento) simplesmente não gera variável — reduzindo o modelo antes
+de o solver começar.
 """
 
 from dataclasses import dataclass
@@ -76,7 +76,7 @@ def gerar_candidatas(
     "todos os projetos" — quando ligado, o pool de instrutores é único e o
     escopo deixa de restringir quem pode gerar candidatas.
     """
-    ocupacao = calcular_ocupacao(turmas_andamento, tipologias)
+    ocupacao = calcular_ocupacao(turmas_andamento)
     projetos_permitidos = (
         None if (permitir_compartilhamento or not projetos_escopo) else projetos_escopo
     )
@@ -94,10 +94,6 @@ def gerar_candidatas(
                 continue
 
             for turno in sorted(instrutor.turnos):
-                capacidade_turno = instrutor.turnos[turno]
-                if tipologia.horas_por_encontro > capacidade_turno:
-                    continue
-
                 for modalidade in Modalidade:
                     if not set(modalidade.dias_semana) <= instrutor.dias_semana:
                         continue
@@ -107,7 +103,6 @@ def gerar_candidatas(
                             instrutor=instrutor,
                             tipologia=tipologia,
                             turno=turno,
-                            capacidade_turno=capacidade_turno,
                             modalidade=modalidade,
                             periodo_de=periodo_de,
                             periodo_ate=periodo_ate,
@@ -135,7 +130,6 @@ def _candidatas_da_combinacao(
     instrutor: InstrutorDados,
     tipologia: TipologiaDados,
     turno: Turno,
-    capacidade_turno: float,
     modalidade: Modalidade,
     periodo_de: date,
     periodo_ate: date,
@@ -159,7 +153,7 @@ def _candidatas_da_combinacao(
             calendario.data_inicio >= periodo_de and calendario.data_fim <= periodo_ate
         )
         if cabe_no_periodo and _cabe_na_capacidade_livre(
-            calendario, instrutor.id, turno, capacidade_turno, ocupacao
+            calendario, instrutor.id, turno, ocupacao
         ):
             resultado.append(
                 CandidataSemId(
@@ -182,17 +176,15 @@ def _cabe_na_capacidade_livre(
     calendario: CalendarioTurma,
     instrutor_id: int,
     turno: Turno,
-    capacidade_turno: float,
     ocupacao: Ocupacao,
 ) -> bool:
-    """A candidata, sozinha, respeita a capacidade já ocupada por turmas em andamento.
+    """A candidata, sozinha, respeita os slots já ocupados por turmas em andamento.
 
     Não elimina conflitos entre candidatas concorrentes — isso permanece como
     restrição genuína do solver (duas candidatas podem caber cada uma
-    isoladamente, mas não juntas).
+    isoladamente, mas não juntas, no mesmo slot).
     """
-    for encontro in calendario.encontros:
-        ocupado = ocupacao.horas_por_turno_data.get((instrutor_id, turno, encontro.data), 0.0)
-        if ocupado + encontro.horas > capacidade_turno:
-            return False
-    return True
+    return all(
+        (instrutor_id, turno, encontro.data) not in ocupacao.slots_ocupados
+        for encontro in calendario.encontros
+    )

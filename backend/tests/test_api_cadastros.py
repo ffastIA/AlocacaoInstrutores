@@ -18,9 +18,9 @@ def base(client: TestClient) -> TestClient:
                 "i.csv",
                 planilha_instrutores(
                     [
-                        ["Maria Silva", "Jovem Digital", "manha;tarde", "4;4", "2;3;4;5",
+                        ["Maria Silva", "Jovem Digital", "manha_1;tarde_1", "2;3;4;5",
                          "Programação;Pixel Art"],
-                        ["João Souza", "Inclusão Tech", "noite", "3", "2;4", "Robótica"],
+                        ["João Souza", "Inclusão Tech", "noite", "2;4", "Robótica"],
                     ]
                 ),
                 CSV,
@@ -92,7 +92,7 @@ class TestTipologias:
                 "arquivo": (
                     "i.csv",
                     planilha_instrutores(
-                        [["Ana Costa", "Jovem Digital", "manha", "4", "2;4", "Xadrez"]]
+                        [["Ana Costa", "Jovem Digital", "manha_1", "2;4", "Xadrez"]]
                     ),
                     CSV,
                 )
@@ -136,10 +136,7 @@ class TestInstrutores:
 
         maria = instrutores["Maria Silva"]
         assert maria["projeto_nome"] == "Jovem Digital"
-        assert {t["turno"]: t["carga_horaria_horas"] for t in maria["turnos"]} == {
-            "manha": 4.0,
-            "tarde": 4.0,
-        }
+        assert set(maria["turnos"]) == {"manha_1", "tarde_1"}
         assert maria["dias_semana"] == [2, 3, 4, 5]
         assert maria["tipologias"] == ["Pixel Art", "Programação"]
 
@@ -169,7 +166,7 @@ class TestInstrutores:
             json={
                 "nome": "Maria Silva",
                 "projeto_id": maria["projeto_id"],
-                "turnos": [{"turno": "noite", "carga_horaria_horas": 3}],
+                "turnos": ["noite"],
                 "dias_semana": [3, 5],
                 "tipologia_ids": [tipologia_id],
             },
@@ -177,7 +174,7 @@ class TestInstrutores:
 
         assert resposta.status_code == 200
         corpo = resposta.json()
-        assert [t["turno"] for t in corpo["turnos"]] == ["noite"]
+        assert corpo["turnos"] == ["noite"]
         assert corpo["dias_semana"] == [3, 5]
         assert corpo["tipologias"] == ["Programação"]
 
@@ -190,7 +187,7 @@ class TestInstrutores:
             json={
                 "nome": "Maria Silva",
                 "projeto_id": maria["projeto_id"],
-                "turnos": [{"turno": "manha", "carga_horaria_horas": 4}],
+                "turnos": ["manha_1"],
                 "dias_semana": [7],
                 "tipologia_ids": [tipologia_id],
             },
@@ -203,7 +200,7 @@ class TestInstrutores:
 
 
 class TestTurmasEmAndamento:
-    def _dados_turma(self, base: TestClient, turno: str = "manha") -> dict:
+    def _dados_turma(self, base: TestClient, turno: str = "manha_1") -> dict:
         maria = next(i for i in base.get("/instrutores").json() if i["nome"] == "Maria Silva")
         tipologia_id = next(t["id"] for t in base.get("/tipologias").json()
                             if t["nome"] == "Programação")
@@ -244,7 +241,7 @@ class TestTurmasEmAndamento:
         primeira["data_fim_prevista"] = "2026-10-30"
         base.post("/turmas-em-andamento", json=primeira)
 
-        segunda = self._dados_turma(base, turno="tarde")
+        segunda = self._dados_turma(base, turno="tarde_1")
         segunda["data_fim_prevista"] = "2026-08-30"
         base.post("/turmas-em-andamento", json=segunda)
 

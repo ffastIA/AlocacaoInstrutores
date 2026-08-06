@@ -42,14 +42,14 @@ CONFIG_DETERMINISTICA = ConfiguracaoSolver(
 def _instrutor(
     id: int,
     projeto_id: int = 1,
-    turnos: dict[Turno, float] | None = None,
+    turnos: frozenset[Turno] | None = None,
     dias_semana: frozenset[int] = frozenset({2, 3, 4, 5}),
     tipologia_ids: frozenset[int] = frozenset({1}),
 ) -> InstrutorDados:
     return InstrutorDados(
         id=id,
         projeto_id=projeto_id,
-        turnos=turnos or {Turno.MANHA: 4.0},
+        turnos=turnos or frozenset({Turno.MANHA_1}),
         dias_semana=dias_semana,
         tipologia_ids=tipologia_ids,
     )
@@ -103,7 +103,7 @@ class TestSolucaoSempreViavel:
 
     def test_nunca_retorna_infactivel(self) -> None:
         """O modelo não tem restrição de cobertura — sempre há solução (mesmo vazia)."""
-        instrutor = _instrutor(1, turnos={Turno.NOITE: 3.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.NOITE}))
         resultado, _ = _resolver([instrutor], [_tipologia(1, carga_total=40, horas_encontro=4)])
 
         assert resultado.status != "INFACTIVEL"
@@ -118,7 +118,9 @@ class TestAproveitamentoMaximo:
 
     def test_peso_exclusivo_maximiza_horas_entregues(self) -> None:
         """Com peso só em aproveitamento, o solver abre o máximo de turmas possível."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
         resultado, candidatas = _resolver(
             [instrutor],
             [
@@ -134,11 +136,15 @@ class TestAproveitamentoMaximo:
         assert horas_selecionadas > 0
 
 
-class TestRestricaoCapacidadeHoraria:
-    def test_duas_turmas_curtas_cabem_no_mesmo_turno(self) -> None:
-        """Turno de 4h comporta duas turmas de 2h simultaneamente."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
-        resultado, candidatas = _resolver(
+class TestRestricaoCapacidadeSlot:
+    def test_duas_candidatas_no_mesmo_slot_nao_coexistem(self) -> None:
+        """Um slot comporta no máximo 1 turma por vez — mesmo com duas
+        tipologias competindo pelo mesmo (instrutor, slot), só uma é aberta em
+        cada data."""
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
+        resultado, _ = _resolver(
             [instrutor],
             [
                 _tipologia(1, carga_total=8, horas_encontro=2),
@@ -147,104 +153,40 @@ class TestRestricaoCapacidadeHoraria:
             pesos=PESOS_APROVEITAMENTO,
         )
 
-        # As duas tipologias devem poder ser abertas simultaneamente (turno de 4h).
-        tipologias_abertas = {c.tipologia_id for c in resultado.candidatas_selecionadas}
-        assert len(tipologias_abertas) >= 1  # ao menos uma; verificação de viabilidade abaixo
+        _validar_nenhum_slot_duplicado(resultado.candidatas_selecionadas)
 
-    def test_nao_viola_capacidade_do_turno_noturno(self) -> None:
-        """Turno de 3h não pode acumular duas turmas de 2h simultaneamente (4h)."""
-        instrutor = _instrutor(1, turnos={Turno.NOITE: 3.0}, tipologia_ids=frozenset({1, 2}))
-        resultado, _ = _resolver(
-            [instrutor],
-            [
-                _tipologia(1, carga_total=8, horas_encontro=2),
-                _tipologia(2, carga_total=8, horas_encontro=2),
-            ],
-        )
-
-        _validar_capacidade_nao_violada(resultado.candidatas_selecionadas, {1: {Turno.NOITE: 3.0}})
-
-    def test_tipologia_de_4h_nunca_alocada_em_turno_de_3h(self) -> None:
-        """Tipologia com 4h/encontro não é elegível para um turno de 3h — nem candidata existe."""
-        instrutor = _instrutor(1, turnos={Turno.NOITE: 3.0})
+    def test_qualquer_tipologia_cabe_em_qualquer_slot(self) -> None:
+        """Sem carga horária por turno, uma tipologia de 4h/encontro tem
+        candidatas normalmente mesmo num slot único como a noite."""
+        instrutor = _instrutor(1, turnos=frozenset({Turno.NOITE}))
         _, candidatas = _resolver([instrutor], [_tipologia(1, carga_total=40, horas_encontro=4)])
 
-        assert candidatas == []
+        assert candidatas != []
 
-
-class TestRestricaoTetoDiario:
-    def test_maximo_quatro_turmas_por_dia(self) -> None:
-        """Cinco tipologias de 1h cabendo no mesmo turno de 5h: só 4 podem abrir por dia."""
-        instrutor = _instrutor(
-            1, turnos={Turno.MANHA: 5.0}, tipologia_ids=frozenset({1, 2, 3, 4, 5})
-        )
-        tipologias = [_tipologia(i, carga_total=24, horas_encontro=1) for i in range(1, 6)]
-
-        resultado, _ = _resolver([instrutor], tipologias, pesos=PESOS_APROVEITAMENTO)
-
-        _validar_teto_diario(resultado.candidatas_selecionadas, limite=4)
-
-    def test_turmas_em_andamento_contam_para_o_teto(self) -> None:
-        """Instrutor com 3 turmas em andamento no dia só pode receber mais 1."""
-        instrutor = _instrutor(
-            1,
-            turnos={Turno.MANHA: 3.0, Turno.TARDE: 4.0, Turno.NOITE: 3.0},
-            tipologia_ids=frozenset({1, 2, 3, 4}),
-            dias_semana=frozenset({2, 3, 4, 5}),
-        )
-        tipologias = [_tipologia(i, carga_total=24, horas_encontro=1) for i in range(1, 5)]
-
-        turmas_andamento = [
-            TurmaAndamentoDados(
-                instrutor_id=1,
-                tipologia_id=1,
-                modalidade=Modalidade.INTENSIVA_SEG_QUI,
-                turno=Turno.MANHA,
-                data_inicio=PERIODO_DE,
-                data_fim_prevista=PERIODO_ATE,
-            ),
-            TurmaAndamentoDados(
-                instrutor_id=1,
-                tipologia_id=2,
-                modalidade=Modalidade.INTENSIVA_SEG_QUI,
-                turno=Turno.TARDE,
-                data_inicio=PERIODO_DE,
-                data_fim_prevista=PERIODO_ATE,
-            ),
-            TurmaAndamentoDados(
-                instrutor_id=1,
-                tipologia_id=3,
-                modalidade=Modalidade.INTENSIVA_SEG_QUI,
-                turno=Turno.NOITE,
-                data_inicio=PERIODO_DE,
-                data_fim_prevista=PERIODO_ATE,
-            ),
-        ]
-
-        resultado, candidatas = _resolver(
-            [instrutor], tipologias, turmas_andamento=turmas_andamento, pesos=PESOS_APROVEITAMENTO
-        )
-
-        # Os turnos têm capacidade residual (3h/4h/3h para 1h já ocupada em
-        # cada um), então o que restringe não é a capacidade horária, e sim o
-        # teto diário: com 3 turmas em andamento, no máximo mais 1 por dia.
-        contagem_por_dia: dict[date, int] = {}
-        for c in resultado.candidatas_selecionadas:
-            for data in {e.data for e in c.calendario.encontros}:
-                contagem_por_dia[data] = contagem_por_dia.get(data, 0) + 1
-
-        for data, novas in contagem_por_dia.items():
-            assert novas <= 1, f"em {data}: {novas} turmas novas, mas só 1 cabia (3 já em curso)"
-
-
-class TestCapacidadeResidualETurnoLivre:
-    def test_instrutor_com_turma_pela_manha_recebe_sugestao_a_tarde(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0, Turno.TARDE: 4.0})
+    def test_slot_ja_ocupado_por_turma_em_andamento_nao_recebe_sugestao(self) -> None:
+        instrutor = _instrutor(1, turnos=frozenset({Turno.NOITE}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.NOITE,
+            data_inicio=PERIODO_DE,
+            data_fim_prevista=PERIODO_ATE,
+        )
+
+        resultado, _ = _resolver([instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento])
+
+        assert resultado.candidatas_selecionadas == ()
+
+
+class TestCapacidadeResidualETurnoLivre:
+    def test_instrutor_com_turma_pela_manha_recebe_sugestao_a_tarde(self) -> None:
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1, Turno.TARDE_1}))
+        turma_andamento = TurmaAndamentoDados(
+            instrutor_id=1,
+            tipologia_id=1,
+            modalidade=Modalidade.INTENSIVA_SEG_QUI,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,
         )
@@ -257,22 +199,20 @@ class TestCapacidadeResidualETurnoLivre:
         )
 
         assert resultado.candidatas_selecionadas
-        assert all(c.turno == Turno.TARDE for c in resultado.candidatas_selecionadas)
+        assert all(c.turno == Turno.TARDE_1 for c in resultado.candidatas_selecionadas)
 
     def test_nao_recebe_sugestao_no_turno_ocupado(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,
         )
 
-        resultado, _ = _resolver(
-            [instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento]
-        )
+        resultado, _ = _resolver([instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento])
 
         assert resultado.candidatas_selecionadas == ()
 
@@ -280,7 +220,7 @@ class TestCapacidadeResidualETurnoLivre:
 class TestEncadeamento:
     def test_instrutor_recebe_turmas_sucessivas_nao_apenas_a_primeira(self) -> None:
         """Período longo comporta múltiplas turmas sucessivas do mesmo instrutor."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         resultado, _ = _resolver(
             [instrutor],
             [_tipologia(1, carga_total=40, horas_encontro=4)],
@@ -292,14 +232,14 @@ class TestEncadeamento:
         )
 
     def test_turmas_sucessivas_nao_se_sobrepoem(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         resultado, _ = _resolver(
             [instrutor],
             [_tipologia(1, carga_total=40, horas_encontro=4)],
             pesos=PESOS_APROVEITAMENTO,
         )
 
-        _validar_capacidade_nao_violada(resultado.candidatas_selecionadas, {1: {Turno.MANHA: 4.0}})
+        _validar_nenhum_slot_duplicado(resultado.candidatas_selecionadas)
 
 
 class TestEscopoDeProjetos:
@@ -322,7 +262,9 @@ class TestObjetivoComposto:
         Sem peso de equilíbrio, o desempate (menor id) concentra tudo na
         tipologia 1; com peso de equilíbrio, a distribuição se torna próxima.
         """
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
         tipologias = [
             _tipologia(1, carga_total=8, horas_encontro=4),
             _tipologia(2, carga_total=8, horas_encontro=4),
@@ -367,7 +309,7 @@ class TestObjetivoComposto:
 
     def test_peso_em_antecipacao_prefere_inicio_mais_cedo(self) -> None:
         """Entre soluções de aproveitamento equivalente, prioriza começar antes."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         pesos = PesosObjetivo(
             maximizar_aproveitamento=0.1,
             antecipar_inicio=0.9,
@@ -388,7 +330,7 @@ class TestObjetivoComposto:
 
     def test_normalizacao_evita_dominancia_de_escala(self) -> None:
         """Alterar apenas a escala de um normalizador, mantendo os pesos, não muda a solução."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         tipologias = [_tipologia(1, carga_total=8, horas_encontro=4)]
         tipologias_dict = {t.id: t for t in tipologias}
 
@@ -405,15 +347,25 @@ class TestObjetivoComposto:
         pesos = PesosObjetivo(1.0, 0.0, 0.0, 0.0)
 
         r1 = resolver(
-            candidatas=candidatas, instrutores=[instrutor], tipologias=tipologias_dict,
-            turmas_andamento=[], periodo_de=PERIODO_DE, periodo_ate=date(2026, 9, 21),
-            pesos=pesos, normalizadores=Normalizadores(10.0, 1.0, 1000.0, 1.0),
+            candidatas=candidatas,
+            instrutores=[instrutor],
+            tipologias=tipologias_dict,
+            turmas_andamento=[],
+            periodo_de=PERIODO_DE,
+            periodo_ate=date(2026, 9, 21),
+            pesos=pesos,
+            normalizadores=Normalizadores(10.0, 1.0, 1000.0, 1.0),
             configuracao=CONFIG_RAPIDA,
         )
         r2 = resolver(
-            candidatas=candidatas, instrutores=[instrutor], tipologias=tipologias_dict,
-            turmas_andamento=[], periodo_de=PERIODO_DE, periodo_ate=date(2026, 9, 21),
-            pesos=pesos, normalizadores=Normalizadores(10_000.0, 1.0, 1000.0, 1.0),
+            candidatas=candidatas,
+            instrutores=[instrutor],
+            tipologias=tipologias_dict,
+            turmas_andamento=[],
+            periodo_de=PERIODO_DE,
+            periodo_ate=date(2026, 9, 21),
+            pesos=pesos,
+            normalizadores=Normalizadores(10_000.0, 1.0, 1000.0, 1.0),
             configuracao=CONFIG_RAPIDA,
         )
 
@@ -426,7 +378,9 @@ class TestDeterminismo:
     def test_duas_execucoes_produzem_resultado_identico(self) -> None:
         """Com gap_relativo=0 (prova exata), o resultado é reprodutível mesmo
         com múltiplos workers — a segunda passagem de desempate garante isso."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
         tipologias = [_tipologia(1), _tipologia(2, carga_total=24, horas_encontro=2)]
 
         r1, _ = _resolver(
@@ -444,7 +398,7 @@ class TestDeterminismo:
 
 class TestNormalizadoresPadrao:
     def test_sem_candidatas_retorna_normalizadores_neutros(self) -> None:
-        normalizadores = normalizadores_padrao([], [], PERIODO_DE, PERIODO_ATE)
+        normalizadores = normalizadores_padrao([], [], {}, PERIODO_DE, PERIODO_ATE)
 
         assert normalizadores.aproveitamento == 1.0
         assert normalizadores.antecipacao == 1.0
@@ -453,7 +407,9 @@ class TestNormalizadoresPadrao:
         """O teto de aproveitamento é a capacidade disponível, não a soma bruta
         das candidatas — a maioria delas compete pelo mesmo instrutor/turno/data
         e jamais poderia ser aberta simultaneamente."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2}))
+        instrutor = _instrutor(
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
+        )
         tipologias_dict = {1: _tipologia(1), 2: _tipologia(2, carga_total=24, horas_encontro=2)}
         candidatas = gerar_candidatas(
             instrutores=[instrutor],
@@ -467,7 +423,7 @@ class TestNormalizadoresPadrao:
         soma_bruta_candidatas = sum(c.calendario.carga_horaria_total for c in candidatas)
 
         normalizadores = normalizadores_padrao(
-            candidatas, [instrutor], PERIODO_DE, PERIODO_ATE
+            candidatas, [instrutor], tipologias_dict, PERIODO_DE, PERIODO_ATE
         )
 
         assert normalizadores.aproveitamento < soma_bruta_candidatas
@@ -487,26 +443,14 @@ def _distribuicao_por_tipologia(
     return distribuicao
 
 
-def _validar_capacidade_nao_violada(candidatas_selecionadas, capacidades: dict) -> None:
-    """Confere que a soma de horas por (instrutor, turno, data) nunca excede a capacidade."""
-    ocupacao_dia: dict[tuple, float] = {}
+def _validar_nenhum_slot_duplicado(candidatas_selecionadas) -> None:
+    """Confere que nenhum (instrutor, slot, data) é ocupado por mais de uma
+    turma selecionada — capacidade binária: no máximo 1 turma por slot."""
+    ocupacao: dict[tuple, int] = {}
     for c in candidatas_selecionadas:
         for encontro in c.calendario.encontros:
             chave = (c.instrutor_id, c.turno, encontro.data)
-            ocupacao_dia[chave] = ocupacao_dia.get(chave, 0.0) + encontro.horas
+            ocupacao[chave] = ocupacao.get(chave, 0) + 1
 
-    for (instrutor_id, turno, _data), horas in ocupacao_dia.items():
-        capacidade = capacidades.get(instrutor_id, {}).get(turno)
-        if capacidade is not None:
-            assert horas <= capacidade + 1e-6, f"excedeu capacidade em {instrutor_id}/{turno}"
-
-
-def _validar_teto_diario(candidatas_selecionadas, limite: int) -> None:
-    contagem: dict[tuple, int] = {}
-    for c in candidatas_selecionadas:
-        for data in {e.data for e in c.calendario.encontros}:
-            chave = (c.instrutor_id, data)
-            contagem[chave] = contagem.get(chave, 0) + 1
-
-    for chave, total in contagem.items():
-        assert total <= limite, f"excedeu o teto diário em {chave}: {total}"
+    for chave, quantidade in ocupacao.items():
+        assert quantidade <= 1, f"slot ocupado por {quantidade} turmas simultâneas: {chave}"

@@ -17,7 +17,7 @@ from app.models.enums import Modalidade, Turno
 class InstrutorDados:
     id: int
     projeto_id: int
-    turnos: dict[Turno, float]  # carga horária disponível por turno
+    turnos: frozenset[Turno]  # slots disponíveis; cada um comporta 1 turma por vez
     dias_semana: frozenset[int]  # numeração da planilha: 2=segunda ... 6=sexta
     tipologia_ids: frozenset[int]
 

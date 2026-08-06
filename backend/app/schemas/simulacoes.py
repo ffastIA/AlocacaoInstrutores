@@ -55,11 +55,11 @@ class KpisOut(BaseModel):
 
     total_turmas_sugeridas: int
     horas_formacao_total: float
-    horas_disponiveis_total: float
+    slots_disponiveis_total: int
     pct_ociosidade: float
     indice_balanceamento_carga: float
     indice_balanceamento_tipologia: float
-    horas_reposicao_sexta: float
+    slots_reposicao_sexta: int
 
 
 class OportunidadeOut(BaseModel):
@@ -78,6 +78,22 @@ class AgendaItemOut(BaseModel):
     turno: Turno
     data_inicio: date
     data_fim: date
+
+
+class CapacidadeInstrutorOut(BaseModel):
+    """Utilização de um instrutor no snapshot congelado desta simulação."""
+
+    instrutor_id: int
+    instrutor_nome: str
+    projeto_id: int
+    projeto_nome: str
+    slots_disponiveis: int
+    slots_ocupados: int
+    utilizacao_percentual: float
+    primeira_data_livre: date | None
+    primeira_data_livre_por_slot: dict[Turno, date] = Field(
+        description="Data de liberação de cada slot do instrutor, independentemente dos demais"
+    )
 
 
 class ComparacaoItemOut(BaseModel):

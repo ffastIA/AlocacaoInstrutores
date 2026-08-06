@@ -17,14 +17,14 @@ PERIODO_ATE = date(2027, 4, 30)
 def _instrutor(
     id: int,
     projeto_id: int = 1,
-    turnos: dict[Turno, float] | None = None,
+    turnos: frozenset[Turno] | None = None,
     dias_semana: frozenset[int] = frozenset({2, 3, 4, 5}),
     tipologia_ids: frozenset[int] = frozenset({1}),
 ) -> InstrutorDados:
     return InstrutorDados(
         id=id,
         projeto_id=projeto_id,
-        turnos=turnos or {Turno.MANHA: 4.0},
+        turnos=turnos or frozenset({Turno.MANHA_1}),
         dias_semana=dias_semana,
         tipologia_ids=tipologia_ids,
     )
@@ -68,7 +68,7 @@ class TestElegibilidadeBasica:
         assert all(c.tipologia_id == 1 for c in candidatas)
 
     def test_turno_indisponivel_nao_gera_candidata(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.NOITE: 3.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.NOITE}))
         candidatas = _gerar([instrutor], [_tipologia(1)])
 
         assert all(c.turno == Turno.NOITE for c in candidatas)
@@ -107,16 +107,11 @@ class TestPodaPorDias:
         assert {c.modalidade for c in candidatas} == set(Modalidade)
 
 
-class TestPodaPorCapacidadeDoTurno:
-    def test_horas_por_encontro_acima_da_capacidade_do_turno(self) -> None:
-        """Tipologia de 4h/encontro não cabe num turno de 3h."""
-        instrutor = _instrutor(1, turnos={Turno.NOITE: 3.0})
-        candidatas = _gerar([instrutor], [_tipologia(1, carga_total=40, horas_encontro=4)])
-
-        assert candidatas == []
-
-    def test_horas_por_encontro_igual_a_capacidade_e_aceita(self) -> None:
-        instrutor = _instrutor(1, turnos={Turno.NOITE: 4.0})
+class TestSlotSemCargaHoraria:
+    def test_qualquer_tipologia_cabe_em_qualquer_slot_disponivel(self) -> None:
+        """Sem carga horária por slot, uma tipologia de 4h/encontro tem
+        candidatas normalmente mesmo num único slot como a noite."""
+        instrutor = _instrutor(1, turnos=frozenset({Turno.NOITE}))
         candidatas = _gerar([instrutor], [_tipologia(1, carga_total=40, horas_encontro=4)])
 
         assert len(candidatas) > 0
@@ -147,12 +142,12 @@ class TestPodaPorPeriodo:
 class TestOcupacaoPorTurmaAndamento:
     def test_candidata_que_colide_com_turma_em_andamento_e_podada(self) -> None:
         """Instrutor com turno lotado por turma em andamento não gera candidata ali."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,  # ocupa o turno o período inteiro
         )
@@ -163,12 +158,12 @@ class TestOcupacaoPorTurmaAndamento:
 
     def test_capacidade_residual_libera_outro_turno(self) -> None:
         """Turma em andamento pela manhã não impede candidata à tarde."""
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0, Turno.TARDE: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1, Turno.TARDE_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,
         )
@@ -176,17 +171,17 @@ class TestOcupacaoPorTurmaAndamento:
         candidatas = _gerar([instrutor], [_tipologia(1)], turmas_andamento=[turma_andamento])
 
         assert candidatas, "deveria haver candidatas à tarde"
-        assert all(c.turno == Turno.TARDE for c in candidatas)
+        assert all(c.turno == Turno.TARDE_1 for c in candidatas)
 
     def test_capacidade_libera_apos_termino_da_turma_em_andamento(self) -> None:
         """Após a turma em andamento terminar, o turno volta a ficar disponível."""
         fim_turma = date(2026, 10, 15)
-        instrutor = _instrutor(1, turnos={Turno.MANHA: 4.0})
+        instrutor = _instrutor(1, turnos=frozenset({Turno.MANHA_1}))
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=fim_turma,
         )
@@ -196,20 +191,21 @@ class TestOcupacaoPorTurmaAndamento:
         assert candidatas, "deveria haver candidatas após o término"
         assert all(c.calendario.data_inicio > fim_turma for c in candidatas)
 
-    def test_duas_tipologias_curtas_cabem_no_mesmo_turno(self) -> None:
-        """Duas turmas de 2h cabem juntas num turno de 4h — não há colisão a priori."""
+    def test_slot_ocupado_bloqueia_candidatas_de_qualquer_tipologia(self) -> None:
+        """Um slot ocupado por uma turma em andamento de uma tipologia bloqueia
+        candidatas de QUALQUER tipologia ali — a ocupação é do slot, não da
+        tipologia específica."""
         instrutor = _instrutor(
-            1, turnos={Turno.MANHA: 4.0}, tipologia_ids=frozenset({1, 2})
+            1, turnos=frozenset({Turno.MANHA_1}), tipologia_ids=frozenset({1, 2})
         )
         turma_andamento = TurmaAndamentoDados(
             instrutor_id=1,
             tipologia_id=1,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,
         )
-        # A ocupação usa 2h/encontro (tipologia 1), sobrando 2h no turno de 4h.
         candidatas = _gerar(
             [instrutor],
             [
@@ -219,7 +215,7 @@ class TestOcupacaoPorTurmaAndamento:
             turmas_andamento=[turma_andamento],
         )
 
-        assert candidatas, "deveria caber uma segunda turma de 2h no turno de 4h"
+        assert candidatas == []
 
 
 class TestCatalogoLimitadoAsHabilidades:

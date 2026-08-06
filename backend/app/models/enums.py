@@ -8,8 +8,14 @@ from enum import StrEnum
 
 
 class Turno(StrEnum):
-    MANHA = "manha"
-    TARDE = "tarde"
+    """Slot de horário. Manhã e tarde têm dois horários fixos e encadeados
+    cada; a noite tem apenas um. Cada slot comporta no máximo uma turma por
+    vez — não há mais conceito de carga horária declarada por turno."""
+
+    MANHA_1 = "manha_1"
+    MANHA_2 = "manha_2"
+    TARDE_1 = "tarde_1"
+    TARDE_2 = "tarde_2"
     NOITE = "noite"
 
 

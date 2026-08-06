@@ -1,0 +1,43 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 72rem;
+}
+
+.cabecalho {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.titulo {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.linkNome {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.linkNome:hover {
+  text-decoration: underline;
+}
+
+.marcaFalha {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.mensagemErro {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-normal);
+}

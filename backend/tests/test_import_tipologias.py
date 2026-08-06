@@ -16,7 +16,7 @@ def _importar(db: Session, linhas: list[list[str]]):
 def _criar_instrutor_com(db: Session, tipologias: str) -> None:
     importar_instrutores(
         db,
-        planilha_instrutores([["Maria Silva", "Jovem Digital", "manha", "4", "2;4", tipologias]]),
+        planilha_instrutores([["Maria Silva", "Jovem Digital", "manha_1", "2;4", tipologias]]),
         "instrutores.csv",
     )
 

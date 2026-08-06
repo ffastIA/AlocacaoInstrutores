@@ -96,7 +96,7 @@ def _aba_indicadores(workbook: Workbook, simulacao: Simulacao) -> None:
         _linha("Ociosidade (%)", round(kpis.pct_ociosidade, 1))
         _linha("Índice de balanceamento de carga", round(kpis.indice_balanceamento_carga, 1))
         _linha("Índice de balanceamento de tipologias", kpis.indice_balanceamento_tipologia)
-        _linha("Horas de reposição (sextas)", kpis.horas_reposicao_sexta)
+        _linha("Slots de reposição (sextas)", kpis.slots_reposicao_sexta)
 
     aba.append([])
     subtitulo = aba.cell(row=aba.max_row + 1, column=1, value="PARÂMETROS DO CENÁRIO")

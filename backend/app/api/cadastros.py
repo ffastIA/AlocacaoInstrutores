@@ -34,7 +34,6 @@ from app.schemas.cadastros import (
     TipologiaPendenteOut,
     TurmaEmAndamentoIn,
     TurmaEmAndamentoOut,
-    TurnoDisponivelOut,
 )
 from app.services.importacao.parser_datas_nao_letivas import AVISO_SEM_EFEITO_CALCULO
 from app.services.importacao.parser_tipologias import listar_pendentes
@@ -216,10 +215,7 @@ def _instrutor_out(instrutor: Instrutor) -> InstrutorOut:
         nome=instrutor.nome,
         projeto_id=instrutor.projeto_id,
         projeto_nome=instrutor.projeto.nome,
-        turnos=[
-            TurnoDisponivelOut(turno=t.turno, carga_horaria_horas=t.carga_horaria_horas)
-            for t in sorted(instrutor.turnos, key=lambda t: t.turno.value)
-        ],
+        turnos=sorted((t.turno for t in instrutor.turnos), key=lambda t: t.value),
         dias_semana=sorted(d.dia_semana for d in instrutor.dias),
         tipologias=sorted(v.tipologia.nome for v in instrutor.tipologias),
         observacao=instrutor.observacao,
@@ -257,10 +253,7 @@ def _aplicar_dados_instrutor(db: Session, instrutor: Instrutor, dados: Instrutor
     instrutor.projeto_id = dados.projeto_id
     instrutor.observacao = dados.observacao
     instrutor.ativo = dados.ativo
-    instrutor.turnos = [
-        InstrutorTurno(turno=t.turno, carga_horaria_horas=t.carga_horaria_horas)
-        for t in dados.turnos
-    ]
+    instrutor.turnos = [InstrutorTurno(turno=t) for t in dados.turnos]
     instrutor.dias = [InstrutorDia(dia_semana=d) for d in dados.dias_semana]
     instrutor.tipologias = [InstrutorTipologia(tipologia_id=t) for t in dados.tipologia_ids]
 

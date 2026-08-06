@@ -34,7 +34,7 @@ class TestGerarCalendarioRegular:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=0,
             modalidade=Modalidade.REGULAR_SEG_QUA,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=40,
             horas_por_encontro=4,
         )
@@ -46,7 +46,7 @@ class TestGerarCalendarioRegular:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=0,
             modalidade=Modalidade.REGULAR_SEG_QUA,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=8,
             horas_por_encontro=4,
         )
@@ -58,7 +58,7 @@ class TestGerarCalendarioRegular:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=0,
             modalidade=Modalidade.REGULAR_TER_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=8,
             horas_por_encontro=4,
         )
@@ -70,7 +70,7 @@ class TestGerarCalendarioRegular:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=0,
             modalidade=Modalidade.REGULAR_SEG_QUA,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=24,
             horas_por_encontro=2,
         )
@@ -82,7 +82,7 @@ class TestGerarCalendarioRegular:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=0,
             modalidade=Modalidade.REGULAR_SEG_QUA,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=8,
             horas_por_encontro=4,
         )
@@ -129,7 +129,7 @@ class TestAusenciaDeSexta:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=semana_inicio,
             modalidade=modalidade,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=48,
             horas_por_encontro=4,
         )
@@ -144,7 +144,7 @@ class TestDeterminismo:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=3,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.TARDE,
+            turno=Turno.TARDE_1,
             carga_horaria_total_horas=24,
             horas_por_encontro=2,
         )
@@ -162,7 +162,7 @@ class TestCargaInvalida:
                 data_referencia=SEGUNDA_REFERENCIA,
                 semana_inicio=0,
                 modalidade=Modalidade.REGULAR_SEG_QUA,
-                turno=Turno.MANHA,
+                turno=Turno.MANHA_1,
                 carga_horaria_total_horas=50,
                 horas_por_encontro=4,
             )
@@ -176,7 +176,7 @@ class TestHorasPorSemana:
             data_referencia=SEGUNDA_REFERENCIA,
             semana_inicio=0,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             carga_horaria_total_horas=24,
             horas_por_encontro=3,
         )

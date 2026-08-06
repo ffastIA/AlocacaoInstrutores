@@ -1,5 +1,8 @@
 """Execução de simulações, consulta de resultados, comparação e exportação."""
 
+import json
+from datetime import date
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -12,12 +15,15 @@ from app.models import (
     OportunidadeSimulacao,
     ResultadoKpis,
     Simulacao,
+    SnapshotCapacidade,
     StatusSimulacao,
     TurmaEmAndamento,
     TurmaSugerida,
+    Turno,
 )
 from app.schemas.simulacoes import (
     AgendaItemOut,
+    CapacidadeInstrutorOut,
     ComparacaoItemOut,
     ComparacaoOut,
     ExecutarSimulacaoIn,
@@ -165,8 +171,7 @@ def comparar_simulacoes(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(
-                    f"Simulação {sid} ainda não está concluída "
-                    f"(status: {simulacao.status.value})"
+                    f"Simulação {sid} ainda não está concluída (status: {simulacao.status.value})"
                 ),
             )
         if simulacao.kpis is None:
@@ -226,9 +231,7 @@ def listar_turmas_sugeridas(
             data_fim=t.data_fim,
             num_encontros=t.num_encontros,
             carga_horaria_total=t.carga_horaria_total,
-            encontros=[
-                {"data": e.data, "turno": e.turno, "horas": e.horas} for e in t.encontros
-            ],
+            encontros=[{"data": e.data, "turno": e.turno, "horas": e.horas} for e in t.encontros],
         )
         for t in turmas
     ]
@@ -245,6 +248,50 @@ def obter_kpis(simulacao_id: int, db: Session = Depends(get_db)) -> KpisOut:
             detail=f"Simulação {simulacao_id} ainda não tem KPIs calculados",
         )
     return KpisOut.model_validate(kpis)
+
+
+@router.get(
+    "/{simulacao_id}/capacidade-instrutores",
+    response_model=list[CapacidadeInstrutorOut],
+    summary="Utilização de cada instrutor no snapshot desta simulação",
+    description=(
+        "Slots disponíveis, ocupados e primeira data livre (agregada e por slot), "
+        "congelados no momento da execução — não refletem alterações feitas nos "
+        "dados depois."
+    ),
+)
+def obter_capacidade_instrutores(
+    simulacao_id: int,
+    projeto_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[CapacidadeInstrutorOut]:
+    _obter_ou_404(db, simulacao_id)
+
+    consulta = select(SnapshotCapacidade).where(SnapshotCapacidade.simulacao_id == simulacao_id)
+    if projeto_id is not None:
+        consulta = consulta.join(Instrutor).where(Instrutor.projeto_id == projeto_id)
+
+    return [
+        CapacidadeInstrutorOut(
+            instrutor_id=s.instrutor_id,
+            instrutor_nome=s.instrutor.nome,
+            projeto_id=s.instrutor.projeto_id,
+            projeto_nome=s.instrutor.projeto.nome,
+            slots_disponiveis=s.slots_disponiveis,
+            slots_ocupados=s.slots_ocupados,
+            utilizacao_percentual=(
+                round(s.slots_ocupados / s.slots_disponiveis * 100, 1)
+                if s.slots_disponiveis > 0
+                else 0.0
+            ),
+            primeira_data_livre=s.primeira_data_livre,
+            primeira_data_livre_por_slot={
+                Turno(turno): date.fromisoformat(valor)
+                for turno, valor in json.loads(s.primeira_data_livre_por_slot_json).items()
+            },
+        )
+        for s in db.scalars(consulta).all()
+    ]
 
 
 @router.get(

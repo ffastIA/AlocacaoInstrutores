@@ -26,65 +26,22 @@ def parse_lista(texto: str) -> list[str]:
     return [item.strip() for item in texto.split(SEPARADOR) if item.strip()]
 
 
-def parse_turnos(texto_turnos: str, texto_cargas: str) -> list[tuple[Turno, float]]:
-    """Interpreta os turnos disponíveis com sua carga horária.
-
-    Aceita dois formatos:
-
-    - **Explícito**: `manha:4;tarde:4` — dispensa a coluna de cargas
-    - **Posicional**: `manha;tarde` com cargas `4;4` — pareado por posição
-
-    O formato posicional falha explicitamente quando as listas têm tamanhos
-    diferentes. Inferir um valor faltante produziria capacidade errada, e
-    capacidade errada produz simulação errada sem nenhum sinal visível.
-    """
+def parse_turnos(texto_turnos: str) -> list[Turno]:
+    """Interpreta os slots de turno disponíveis (manha_1, manha_2, tarde_1,
+    tarde_2, noite). Cada slot comporta no máximo uma turma por vez — não há
+    carga horária a declarar."""
     itens = parse_lista(texto_turnos)
     if not itens:
         raise ValorInvalidoError("Nenhum turno informado")
 
-    if any(":" in item for item in itens):
-        return _parse_turnos_explicito(itens)
-    return _parse_turnos_posicional(itens, parse_lista(texto_cargas))
+    turnos = [parse_turno(item) for item in itens]
 
-
-def _parse_turnos_explicito(itens: list[str]) -> list[tuple[Turno, float]]:
-    resultado: list[tuple[Turno, float]] = []
-    for item in itens:
-        if ":" not in item:
-            raise ValorInvalidoError(
-                f"'{item}' não segue o formato 'turno:horas' usado nos demais itens"
-            )
-        nome, _, carga = item.partition(":")
-        resultado.append((parse_turno(nome), _parse_carga(carga)))
-    return _sem_duplicatas(resultado)
-
-
-def _parse_turnos_posicional(itens: list[str], cargas: list[str]) -> list[tuple[Turno, float]]:
-    if not cargas:
-        raise ValorInvalidoError(
-            "Carga horária por turno não informada. Preencha a coluna "
-            "'carga_horaria_turno' ou use o formato 'manha:4;tarde:4'"
-        )
-    if len(itens) != len(cargas):
-        raise ValorInvalidoError(
-            f"{len(itens)} turno(s) informado(s) mas {len(cargas)} carga(s) horária(s): "
-            "as duas listas precisam ter a mesma quantidade de itens"
-        )
-    return _sem_duplicatas(
-        [
-            (parse_turno(nome), _parse_carga(carga))
-            for nome, carga in zip(itens, cargas, strict=True)
-        ]
-    )
-
-
-def _sem_duplicatas(pares: list[tuple[Turno, float]]) -> list[tuple[Turno, float]]:
     vistos: set[Turno] = set()
-    for turno, _ in pares:
+    for turno in turnos:
         if turno in vistos:
             raise ValorInvalidoError(f"Turno '{turno.value}' informado mais de uma vez")
         vistos.add(turno)
-    return pares
+    return turnos
 
 
 def parse_turno(texto: str) -> Turno:
@@ -97,16 +54,6 @@ def parse_turno(texto: str) -> Turno:
     except ValueError:
         validos = ", ".join(t.value for t in Turno)
         raise ValorInvalidoError(f"Turno inválido: '{texto}'. Valores aceitos: {validos}") from None
-
-
-def _parse_carga(texto: str) -> float:
-    try:
-        valor = float(texto.strip().replace(",", "."))
-    except ValueError:
-        raise ValorInvalidoError(f"Carga horária inválida: '{texto}'") from None
-    if valor <= 0:
-        raise ValorInvalidoError(f"Carga horária deve ser maior que zero: '{texto}'")
-    return valor
 
 
 def parse_dias_semana(texto: str) -> list[int]:

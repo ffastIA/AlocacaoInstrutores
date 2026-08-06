@@ -283,8 +283,7 @@ def base_com_instrutor(client: TestClient) -> TestClient:
                         [
                             "Maria Silva",
                             "Jovem Digital",
-                            "manha",
-                            "4",
+                            "manha_1",
                             "2;3;4;5",
                             "Programação;Pixel Art",
                         ]

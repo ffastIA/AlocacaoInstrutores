@@ -14,22 +14,22 @@ from app.services.solver.gerador_candidatas import Candidata
 from app.services.solver.ocupacao import (
     Ocupacao,
     calcular_ocupacao,
-    dias_uteis_no_periodo,
-    ocupado_fixo_total,
+    slots_disponiveis_periodo,
+    slots_ocupados_total,
 )
 
 
 @dataclass(frozen=True)
 class UtilizacaoInstrutor:
     instrutor_id: int
-    horas_alocadas: float
-    horas_disponiveis: float
+    slots_alocados: int
+    slots_disponiveis: int
 
     @property
     def utilizacao_percentual(self) -> float:
-        if self.horas_disponiveis <= 0:
+        if self.slots_disponiveis <= 0:
             return 0.0
-        return min(self.horas_alocadas / self.horas_disponiveis, 1.0) * 100
+        return min(self.slots_alocados / self.slots_disponiveis, 1.0) * 100
 
 
 @dataclass(frozen=True)
@@ -59,8 +59,9 @@ class ResultadoMetricas:
     distribuicao_por_tipologia: dict[int, int]
     indice_balanceamento_tipologias: float
     primeira_data_livre: dict[int, date]
+    primeira_data_livre_por_slot: dict[int, dict[Turno, date]]
     oportunidades: tuple[OportunidadeTipologia, ...]
-    horas_reposicao_sexta: float
+    slots_reposicao_sexta: int
     metadados: MetadadosExecucao
 
 
@@ -80,21 +81,21 @@ def calcular_metricas(
     diagnóstico de capacidade.
     """
     selecionadas = resultado_solver.candidatas_selecionadas
-    ocupacao = calcular_ocupacao(turmas_andamento, {})
+    ocupacao = calcular_ocupacao(turmas_andamento)
 
     utilizacoes = _calcular_utilizacao_por_instrutor(
         instrutores, selecionadas, ocupacao, periodo_de, periodo_ate
     )
 
-    horas_alocadas_total = sum(u.horas_alocadas for u in utilizacoes)
-    horas_disponiveis_total = sum(u.horas_disponiveis for u in utilizacoes)
+    slots_alocados_total = sum(u.slots_alocados for u in utilizacoes)
+    slots_disponiveis_total = sum(u.slots_disponiveis for u in utilizacoes)
     pct_ociosidade = (
-        (1 - horas_alocadas_total / horas_disponiveis_total) * 100
-        if horas_disponiveis_total > 0
+        (1 - slots_alocados_total / slots_disponiveis_total) * 100
+        if slots_disponiveis_total > 0
         else 0.0
     )
 
-    utilizacoes_validas = [u.utilizacao_percentual for u in utilizacoes if u.horas_disponiveis > 0]
+    utilizacoes_validas = [u.utilizacao_percentual for u in utilizacoes if u.slots_disponiveis > 0]
     indice_balanceamento_carga = (
         max(utilizacoes_validas) - min(utilizacoes_validas) if utilizacoes_validas else 0.0
     )
@@ -112,13 +113,17 @@ def calcular_metricas(
         else 0.0
     )
 
-    primeira_data_livre = _primeira_data_livre_por_instrutor(
+    primeira_data_livre_por_slot = _primeira_data_livre_por_slot(
         instrutores, turmas_andamento, periodo_de
     )
+    primeira_data_livre = {
+        instrutor_id: min(datas.values()) if datas else periodo_de
+        for instrutor_id, datas in primeira_data_livre_por_slot.items()
+    }
 
     oportunidades = _leque_de_oportunidades(candidatas_geradas)
 
-    horas_reposicao = _horas_reposicao_sexta(instrutores, periodo_de, periodo_ate)
+    slots_reposicao = _slots_reposicao_sexta(instrutores, periodo_de, periodo_ate)
 
     metadados = MetadadosExecucao(
         total_turmas_sugeridas=len(selecionadas),
@@ -135,8 +140,9 @@ def calcular_metricas(
         distribuicao_por_tipologia=distribuicao_tipologia,
         indice_balanceamento_tipologias=indice_balanceamento_tipologias,
         primeira_data_livre=primeira_data_livre,
+        primeira_data_livre_por_slot=primeira_data_livre_por_slot,
         oportunidades=oportunidades,
-        horas_reposicao_sexta=horas_reposicao,
+        slots_reposicao_sexta=slots_reposicao,
         metadados=metadados,
     )
 
@@ -148,26 +154,23 @@ def _calcular_utilizacao_por_instrutor(
     periodo_de: date,
     periodo_ate: date,
 ) -> list[UtilizacaoInstrutor]:
-    horas_por_instrutor: dict[int, float] = {}
+    slots_por_instrutor: dict[int, int] = {}
     for c in selecionadas:
-        horas_por_instrutor[c.instrutor_id] = (
-            horas_por_instrutor.get(c.instrutor_id, 0.0) + c.calendario.carga_horaria_total
+        slots_por_instrutor[c.instrutor_id] = (
+            slots_por_instrutor.get(c.instrutor_id, 0) + len(c.calendario.encontros)
         )
 
     resultado = []
     for instrutor in instrutores:
-        dias = dias_uteis_no_periodo(instrutor.dias_semana, periodo_de, periodo_ate)
-        disponivel = sum(capacidade * dias for capacidade in instrutor.turnos.values())
+        disponivel = slots_disponiveis_periodo(instrutor, periodo_de, periodo_ate)
+        ocupado_fixo = slots_ocupados_total(ocupacao, instrutor.id, periodo_de, periodo_ate)
 
-        ocupado_bruto = ocupado_fixo_total(ocupacao, instrutor.id)
-        ocupado = disponivel if ocupado_bruto == float("inf") else min(ocupado_bruto, disponivel)
-
-        alocado = ocupado + horas_por_instrutor.get(instrutor.id, 0.0)
+        alocado = ocupado_fixo + slots_por_instrutor.get(instrutor.id, 0)
         resultado.append(
             UtilizacaoInstrutor(
                 instrutor_id=instrutor.id,
-                horas_alocadas=min(alocado, disponivel),
-                horas_disponiveis=disponivel,
+                slots_alocados=min(alocado, disponivel),
+                slots_disponiveis=disponivel,
             )
         )
     return resultado
@@ -183,12 +186,17 @@ def _distribuicao_por_tipologia(
     return distribuicao
 
 
-def _primeira_data_livre_por_instrutor(
+def _primeira_data_livre_por_slot(
     instrutores: list[InstrutorDados],
     turmas_andamento: list[TurmaAndamentoDados],
     periodo_de: date,
-) -> dict[int, date]:
-    """Primeira data em que o instrutor fica livre em todos os turnos.
+) -> dict[int, dict[Turno, date]]:
+    """Primeira data em que cada slot do instrutor fica livre.
+
+    Cada slot libera de forma independente — quem consome o agregado (ver
+    `primeira_data_livre` em `calcular_metricas`) usa o mínimo entre eles, não
+    o máximo: um instrutor com um slot livre amanhã e outro ocupado por meses
+    já tem oportunidade de curto prazo, e reportar o máximo esconderia isso.
 
     Baseada na data de término **oficial** (`data_fim_prevista`) das turmas em
     andamento — não no último encontro efetivo do padrão de dias. É assim que
@@ -197,24 +205,25 @@ def _primeira_data_livre_por_instrutor(
     padrão de dias fazer o último encontro efetivo cair um ou dois dias antes.
 
     Instrutor sem nenhuma turma em andamento tem como primeira data livre o
-    início do próprio período.
+    início do próprio período, em todos os seus slots.
     """
-    ultimo_fim_por_turno: dict[tuple[int, Turno], date] = {}
+    ultimo_fim_por_slot: dict[tuple[int, Turno], date] = {}
     for turma in turmas_andamento:
         chave = (turma.instrutor_id, turma.turno)
-        atual = ultimo_fim_por_turno.get(chave)
+        atual = ultimo_fim_por_slot.get(chave)
         if atual is None or turma.data_fim_prevista > atual:
-            ultimo_fim_por_turno[chave] = turma.data_fim_prevista
+            ultimo_fim_por_slot[chave] = turma.data_fim_prevista
 
-    resultado: dict[int, date] = {}
+    resultado: dict[int, dict[Turno, date]] = {}
     for instrutor in instrutores:
-        livre_por_turno = [
-            periodo_de
-            if (fim := ultimo_fim_por_turno.get((instrutor.id, turno))) is None
-            else max(fim + timedelta(days=1), periodo_de)
+        resultado[instrutor.id] = {
+            turno: (
+                periodo_de
+                if (fim := ultimo_fim_por_slot.get((instrutor.id, turno))) is None
+                else max(fim + timedelta(days=1), periodo_de)
+            )
             for turno in instrutor.turnos
-        ]
-        resultado[instrutor.id] = max(livre_por_turno) if livre_por_turno else periodo_de
+        }
 
     return resultado
 
@@ -244,10 +253,10 @@ def _leque_de_oportunidades(
     return tuple(sorted(oportunidades, key=lambda o: (o.data_inicio, o.tipologia_id)))
 
 
-def _horas_reposicao_sexta(
+def _slots_reposicao_sexta(
     instrutores: list[InstrutorDados], periodo_de: date, periodo_ate: date
-) -> float:
-    """Capacidade de reposição disponível às sextas-feiras.
+) -> int:
+    """Quantidade de slots de reposição disponíveis às sextas-feiras.
 
     Derivada dos instrutores que declararam disponibilidade no dia 6 — nunca
     aloca turma regular, apenas informa a capacidade de contingência.
@@ -259,10 +268,10 @@ def _horas_reposicao_sexta(
             sextas_no_periodo += 1
         data_atual += timedelta(days=1)
 
-    total = 0.0
+    total = 0
     for instrutor in instrutores:
         if DIA_REPOSICAO not in instrutor.dias_semana:
             continue
-        total += sum(instrutor.turnos.values()) * sextas_no_periodo
+        total += len(instrutor.turnos) * sextas_no_periodo
 
     return total

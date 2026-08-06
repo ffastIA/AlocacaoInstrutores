@@ -17,10 +17,10 @@ class TestImportacaoBemSucedida:
         resultado = _importar(
             db,
             [
-                ["Maria Silva", "Jovem Digital", "manha;tarde", "4;4", "2;3;4;5",
+                ["Maria Silva", "Jovem Digital", "manha_1;tarde_1", "2;3;4;5",
                  "Programação;Pixel Art"],
-                ["João Souza", "Jovem Digital", "noite", "3", "2;4", "Robótica"],
-                ["Ana Costa", "Inclusão Tech", "manha;noite", "4;3", "2;3;4;5;6",
+                ["João Souza", "Jovem Digital", "noite", "2;4", "Robótica"],
+                ["Ana Costa", "Inclusão Tech", "manha_1;noite", "2;3;4;5;6",
                  "Robótica;Programação"],
             ],
         )
@@ -29,19 +29,16 @@ class TestImportacaoBemSucedida:
         assert resultado.erros == []
         assert resultado.importados == 3
 
-    def test_persiste_turnos_com_cargas_distintas(self, db: Session) -> None:
-        _importar(db, [["Ana Costa", "Inclusão Tech", "manha;noite", "4;3", "2;4", "Robótica"]])
+    def test_persiste_multiplos_slots(self, db: Session) -> None:
+        _importar(db, [["Ana Costa", "Inclusão Tech", "manha_1;noite", "2;4", "Robótica"]])
 
         instrutor = db.scalar(select(Instrutor).where(Instrutor.nome == "Ana Costa"))
-        assert {t.turno: t.carga_horaria_horas for t in instrutor.turnos} == {
-            Turno.MANHA: 4.0,
-            Turno.NOITE: 3.0,
-        }
+        assert {t.turno for t in instrutor.turnos} == {Turno.MANHA_1, Turno.NOITE}
 
     def test_persiste_dias_e_tipologias(self, db: Session) -> None:
         _importar(
             db,
-            [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação;Pixel Art"]],
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação;Pixel Art"]],
         )
 
         instrutor = db.scalar(select(Instrutor).where(Instrutor.nome == "Maria Silva"))
@@ -51,22 +48,10 @@ class TestImportacaoBemSucedida:
             "Programação",
         ]
 
-    def test_aceita_formato_explicito_turno_horas(self, db: Session) -> None:
-        conteudo = csv_bytes(
-            ["nome", "projeto", "turnos", "dias_semana", "tipologias"],
-            [["Maria Silva", "Jovem Digital", "manha:4;tarde:4", "2;4", "Programação"]],
-        )
-
-        resultado = importar_instrutores(db, conteudo, "instrutores.csv")
-
-        assert resultado.erros == []
-        instrutor = db.scalar(select(Instrutor).where(Instrutor.nome == "Maria Silva"))
-        assert len(instrutor.turnos) == 2
-
     def test_aceita_xlsx(self, db: Session) -> None:
         conteudo = xlsx_bytes(
-            ["nome", "projeto", "turnos", "carga_horaria_turno", "dias_semana", "tipologias"],
-            [["Maria Silva", "Jovem Digital", "manha", 4, "2;4", "Programação"]],
+            ["nome", "projeto", "turnos", "dias_semana", "tipologias"],
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"]],
         )
 
         resultado = importar_instrutores(db, conteudo, "instrutores.xlsx")
@@ -76,8 +61,8 @@ class TestImportacaoBemSucedida:
 
     def test_aceita_cabecalhos_com_acento_maiuscula_e_ordem_trocada(self, db: Session) -> None:
         conteudo = csv_bytes(
-            ["Tipologias", "NOME", "Dias Semana", "Projeto", "Turnos", "Carga Horária Turno"],
-            [["Programação", "Maria Silva", "2;4", "Jovem Digital", "manha", "4"]],
+            ["Tipologias", "NOME", "Dias Semana", "Projeto", "Turnos"],
+            [["Programação", "Maria Silva", "2;4", "Jovem Digital", "manha_1"]],
         )
 
         resultado = importar_instrutores(db, conteudo, "instrutores.csv")
@@ -88,7 +73,7 @@ class TestImportacaoBemSucedida:
     def test_remove_espacos_em_torno_dos_separadores(self, db: Session) -> None:
         _importar(
             db,
-            [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação ; Pixel Art"]],
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação ; Pixel Art"]],
         )
 
         nomes = sorted(t.nome for t in db.scalars(select(Tipologia)).all())
@@ -97,14 +82,14 @@ class TestImportacaoBemSucedida:
 
 class TestDerivacaoDeCatalogo:
     def test_cria_tipologias_ineditas_como_pendentes(self, db: Session) -> None:
-        _importar(db, [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Robótica"]])
+        _importar(db, [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Robótica"]])
 
         tipologia = db.scalar(select(Tipologia).where(Tipologia.nome == "Robótica"))
         assert tipologia is not None
         assert tipologia.configurada is False
 
     def test_cria_projetos_ineditos(self, db: Session) -> None:
-        _importar(db, [["Maria Silva", "Projeto Novo", "manha", "4", "2;4", "Robótica"]])
+        _importar(db, [["Maria Silva", "Projeto Novo", "manha_1", "2;4", "Robótica"]])
 
         assert db.scalar(select(Projeto).where(Projeto.nome == "Projeto Novo")) is not None
 
@@ -112,7 +97,7 @@ class TestDerivacaoDeCatalogo:
         db.add(Tipologia(nome="Robótica", carga_horaria_total_horas=40, horas_por_encontro=4))
         db.commit()
 
-        _importar(db, [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Robótica"]])
+        _importar(db, [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Robótica"]])
 
         tipologias = db.scalars(select(Tipologia).where(Tipologia.nome == "Robótica")).all()
         assert len(tipologias) == 1
@@ -120,7 +105,7 @@ class TestDerivacaoDeCatalogo:
 
     def test_alerta_sobre_tipologias_pendentes(self, db: Session) -> None:
         resultado = _importar(
-            db, [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Robótica;Pixel Art"]]
+            db, [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Robótica;Pixel Art"]]
         )
 
         assert any("pendente" in a.mensagem for a in resultado.alertas)
@@ -132,9 +117,9 @@ class TestValidacaoPorLinha:
         resultado = _importar(
             db,
             [
-                ["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"],
-                ["Erro Turnos", "Jovem Digital", "manha;tarde", "4", "2;4", "Programação"],
-                ["João Souza", "Jovem Digital", "noite", "3", "2;4", "Robótica"],
+                ["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"],
+                ["Erro Turnos", "Jovem Digital", "madrugada", "2;4", "Programação"],
+                ["João Souza", "Jovem Digital", "noite", "2;4", "Robótica"],
             ],
         )
 
@@ -145,40 +130,33 @@ class TestValidacaoPorLinha:
         assert db.scalar(select(Instrutor).where(Instrutor.nome == "João Souza")) is not None
 
     def test_rejeita_instrutor_sem_tipologia(self, db: Session) -> None:
-        resultado = _importar(db, [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", ""]])
+        resultado = _importar(db, [["Maria Silva", "Jovem Digital", "manha_1", "2;4", ""]])
 
         assert resultado.importados == 0
         assert "tipologia" in resultado.erros[0].motivo.lower()
 
     def test_rejeita_turno_invalido(self, db: Session) -> None:
         resultado = _importar(
-            db, [["Maria Silva", "Jovem Digital", "madrugada", "4", "2;4", "Programação"]]
+            db, [["Maria Silva", "Jovem Digital", "madrugada", "2;4", "Programação"]]
         )
 
         assert "Turno inválido" in resultado.erros[0].motivo
 
     def test_rejeita_dia_fora_da_faixa(self, db: Session) -> None:
         resultado = _importar(
-            db, [["Maria Silva", "Jovem Digital", "manha", "4", "2;7", "Programação"]]
+            db, [["Maria Silva", "Jovem Digital", "manha_1", "2;7", "Programação"]]
         )
 
         assert "fora da faixa" in resultado.erros[0].motivo
 
-    def test_rejeita_desalinhamento_entre_turnos_e_cargas(self, db: Session) -> None:
-        resultado = _importar(
-            db, [["Maria Silva", "Jovem Digital", "manha;tarde", "4", "2;4", "Programação"]]
-        )
-
-        assert "mesma quantidade" in resultado.erros[0].motivo
-
     def test_rejeita_nome_vazio(self, db: Session) -> None:
-        resultado = _importar(db, [["", "Jovem Digital", "manha", "4", "2;4", "Programação"]])
+        resultado = _importar(db, [["", "Jovem Digital", "manha_1", "2;4", "Programação"]])
 
         assert "Nome" in resultado.erros[0].motivo
 
     def test_numero_da_linha_corresponde_a_planilha(self, db: Session) -> None:
         """A linha 2 é a primeira de dados, já que a 1 é o cabeçalho."""
-        resultado = _importar(db, [["", "Jovem Digital", "manha", "4", "2;4", "Programação"]])
+        resultado = _importar(db, [["", "Jovem Digital", "manha_1", "2;4", "Programação"]])
 
         assert resultado.erros[0].linha == 2
 
@@ -191,11 +169,11 @@ class TestValidacaoPorLinha:
         resultado = _importar(
             db,
             [
-                ["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"],
-                ["Erro Turnos", "Jovem Digital", "manha;tarde", "4", "2;4", "Programação"],
-                ["João Souza", "Jovem Digital", "noite", "3", "2;4", "Robótica"],
-                ["Erro Dia", "Jovem Digital", "manha", "4", "9", "Robótica"],
-                ["Ana Costa", "Inclusão Tech", "tarde", "4", "3;5", "Pixel Art"],
+                ["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"],
+                ["Erro Turnos", "Jovem Digital", "madrugada", "2;4", "Programação"],
+                ["João Souza", "Jovem Digital", "noite", "2;4", "Robótica"],
+                ["Erro Dia", "Jovem Digital", "manha_1", "9", "Robótica"],
+                ["Ana Costa", "Inclusão Tech", "tarde_1", "3;5", "Pixel Art"],
             ],
         )
 
@@ -209,8 +187,8 @@ class TestValidacaoPorLinha:
         resultado = _importar(
             db,
             [
-                ["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"],
-                ["Maria Silva", "Jovem Digital", "noite", "3", "3;5", "Robótica"],
+                ["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"],
+                ["Maria Silva", "Jovem Digital", "noite", "3;5", "Robótica"],
             ],
         )
 
@@ -222,8 +200,8 @@ class TestValidacaoPorLinha:
 class TestArquivoRecusado:
     def test_coluna_obrigatoria_ausente_recusa_o_arquivo(self, db: Session) -> None:
         conteudo = csv_bytes(
-            ["nome", "projeto", "turnos", "carga_horaria_turno", "dias_semana"],
-            [["Maria Silva", "Jovem Digital", "manha", "4", "2;4"]],
+            ["nome", "projeto", "turnos", "dias_semana"],
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;4"]],
         )
 
         resultado = importar_instrutores(db, conteudo, "instrutores.csv")
@@ -241,10 +219,10 @@ class TestArquivoRecusado:
 
 class TestReimportacao:
     def test_atualiza_instrutor_existente_sem_duplicar(self, db: Session) -> None:
-        _importar(db, [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"]])
+        _importar(db, [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"]])
         resultado = _importar(
             db,
-            [["Maria Silva", "Jovem Digital", "manha;noite", "4;3", "2;3;4", "Robótica"]],
+            [["Maria Silva", "Jovem Digital", "manha_1;noite", "2;3;4", "Robótica"]],
         )
 
         assert resultado.atualizados == 1

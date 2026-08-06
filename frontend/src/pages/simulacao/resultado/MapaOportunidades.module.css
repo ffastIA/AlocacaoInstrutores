@@ -1,0 +1,81 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.barraSuperior {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.filtros {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.grupos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tabelaScroll {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.tabela th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.tabela td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.linkDetalhe {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.linkDetalhe:hover {
+  text-decoration: underline;
+}
+
+.marcaAlternativa {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.semSelecao {
+  color: var(--color-text-secondary);
+}
+
+.listaDetalhe {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.itemDetalhe p {
+  margin: 0;
+}

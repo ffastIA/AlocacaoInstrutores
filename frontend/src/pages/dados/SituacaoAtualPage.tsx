@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../api/cliente";
 import { ApiError } from "../../api/erros";
@@ -29,7 +29,13 @@ const MODALIDADES: { valor: Modalidade; rotulo: string }[] = [
   { valor: "intensiva_seg_qui", rotulo: "Intensiva (segunda a quinta)" },
 ];
 
-const ROTULO_TURNO: Record<Turno, string> = { manha: "Manhã", tarde: "Tarde", noite: "Noite" };
+const ROTULO_TURNO: Record<Turno, string> = {
+  manha_1: "Manhã 1",
+  manha_2: "Manhã 2",
+  tarde_1: "Tarde 1",
+  tarde_2: "Tarde 2",
+  noite: "Noite",
+};
 
 interface FormState {
   instrutor_id: string;
@@ -179,29 +185,6 @@ export function SituacaoAtualPage() {
     }
   }
 
-  const instrutoresSobrecarregados = useMemo(() => {
-    if (!turmas) return [];
-    const somaPorChave = new Map<string, number>();
-    for (const turma of turmas) {
-      const tipologia = tipologias.find((t) => t.id === turma.tipologia_id);
-      if (!tipologia?.horas_por_encontro) continue;
-      const chave = `${turma.instrutor_id}::${turma.turno}`;
-      somaPorChave.set(chave, (somaPorChave.get(chave) ?? 0) + tipologia.horas_por_encontro);
-    }
-    const alertas: string[] = [];
-    for (const [chave, horas] of somaPorChave) {
-      const [instrutorId, turno] = chave.split("::");
-      const instrutor = instrutores.find((i) => String(i.id) === instrutorId);
-      const capacidade = instrutor?.turnos.find((t) => t.turno === turno)?.carga_horaria_horas;
-      if (instrutor && capacidade !== undefined && horas > capacidade) {
-        alertas.push(
-          `${instrutor.nome} — turno ${ROTULO_TURNO[turno as Turno]}: ${horas}h alocadas acima da capacidade declarada (${capacidade}h)`,
-        );
-      }
-    }
-    return alertas;
-  }, [turmas, tipologias, instrutores]);
-
   if (erroCarga) return <Alert variante="erro">{erroCarga}</Alert>;
   if (turmas === null) return <Spinner rotulo="Carregando situação atual…" />;
 
@@ -258,16 +241,6 @@ export function SituacaoAtualPage() {
         instrutores liberam capacidade primeiro.
       </p>
 
-      {instrutoresSobrecarregados.length > 0 && (
-        <Alert variante="alerta" titulo="Capacidade declarada excedida">
-          <ul>
-            {instrutoresSobrecarregados.map((linha) => (
-              <li key={linha}>{linha}</li>
-            ))}
-          </ul>
-        </Alert>
-      )}
-
       {turmas.length === 0 ? (
         <EmptyState
           titulo="Nenhuma turma em andamento"
@@ -318,8 +291,8 @@ export function SituacaoAtualPage() {
             opcoes={[
               { valor: "", rotulo: instrutorSelecionado ? "Selecione…" : "Selecione o instrutor primeiro" },
               ...turnosDoInstrutor.map((t) => ({
-                valor: t.turno,
-                rotulo: `${ROTULO_TURNO[t.turno]} (${t.carga_horaria_horas}h)`,
+                valor: t,
+                rotulo: ROTULO_TURNO[t],
               })),
             ]}
             value={form.turno}

@@ -18,9 +18,9 @@ def base_carregada(db: Session) -> Session:
         db,
         planilha_instrutores(
             [
-                ["Maria Silva", "Jovem Digital", "manha;tarde", "4;4", "2;3;4;5",
+                ["Maria Silva", "Jovem Digital", "manha_1;tarde_1", "2;3;4;5",
                  "Programação;Pixel Art"],
-                ["João Souza", "Jovem Digital", "noite", "3", "2;3;4;5", "Robótica"],
+                ["João Souza", "Jovem Digital", "noite", "2;3;4;5", "Robótica"],
             ]
         ),
         "instrutores.csv",
@@ -44,7 +44,7 @@ class TestImportacaoBemSucedida:
         resultado = _importar(
             base_carregada,
             [
-                ["Maria Silva", "Programação", "regular_seg_qua", "manha",
+                ["Maria Silva", "Programação", "regular_seg_qua", "manha_1",
                  "01/06/2026", "30/08/2026"],
                 ["João Souza", "Robótica", "intensiva_seg_qui", "noite",
                  "15/07/2026", "20/09/2026"],
@@ -57,7 +57,7 @@ class TestImportacaoBemSucedida:
     def test_persiste_os_dados_corretamente(self, base_carregada: Session) -> None:
         _importar(
             base_carregada,
-            [["Maria Silva", "Programação", "regular_seg_qua", "manha",
+            [["Maria Silva", "Programação", "regular_seg_qua", "manha_1",
               "01/06/2026", "30/08/2026"]],
         )
 
@@ -65,14 +65,14 @@ class TestImportacaoBemSucedida:
         assert turma.instrutor.nome == "Maria Silva"
         assert turma.tipologia.nome == "Programação"
         assert turma.modalidade == Modalidade.REGULAR_SEG_QUA
-        assert turma.turno == Turno.MANHA
+        assert turma.turno == Turno.MANHA_1
         assert turma.data_inicio.isoformat() == "2026-06-01"
         assert turma.data_fim_prevista.isoformat() == "2026-08-30"
 
     def test_deriva_o_projeto_do_instrutor(self, base_carregada: Session) -> None:
         _importar(
             base_carregada,
-            [["Maria Silva", "Programação", "regular_seg_qua", "manha",
+            [["Maria Silva", "Programação", "regular_seg_qua", "manha_1",
               "01/06/2026", "30/08/2026"]],
         )
 
@@ -92,7 +92,7 @@ class TestValidacao:
     def test_rejeita_instrutor_inexistente(self, base_carregada: Session) -> None:
         resultado = _importar(
             base_carregada,
-            [["Fulano Inexistente", "Programação", "regular_seg_qua", "manha",
+            [["Fulano Inexistente", "Programação", "regular_seg_qua", "manha_1",
               "01/06/2026", "30/08/2026"]],
         )
 
@@ -101,7 +101,7 @@ class TestValidacao:
     def test_rejeita_tipologia_inexistente(self, base_carregada: Session) -> None:
         resultado = _importar(
             base_carregada,
-            [["Maria Silva", "Xadrez", "regular_seg_qua", "manha",
+            [["Maria Silva", "Xadrez", "regular_seg_qua", "manha_1",
               "01/06/2026", "30/08/2026"]],
         )
 
@@ -116,12 +116,12 @@ class TestValidacao:
         )
 
         assert "não está disponível no turno" in resultado.erros[0].motivo
-        assert "manha, tarde" in resultado.erros[0].motivo
+        assert "manha_1, tarde_1" in resultado.erros[0].motivo
 
     def test_rejeita_modalidade_invalida(self, base_carregada: Session) -> None:
         resultado = _importar(
             base_carregada,
-            [["Maria Silva", "Programação", "sexta_feira", "manha",
+            [["Maria Silva", "Programação", "sexta_feira", "manha_1",
               "01/06/2026", "30/08/2026"]],
         )
 
@@ -130,7 +130,7 @@ class TestValidacao:
     def test_rejeita_termino_anterior_ao_inicio(self, base_carregada: Session) -> None:
         resultado = _importar(
             base_carregada,
-            [["Maria Silva", "Programação", "regular_seg_qua", "manha",
+            [["Maria Silva", "Programação", "regular_seg_qua", "manha_1",
               "30/08/2026", "01/06/2026"]],
         )
 
@@ -139,7 +139,7 @@ class TestValidacao:
     def test_rejeita_data_em_formato_invalido(self, base_carregada: Session) -> None:
         resultado = _importar(
             base_carregada,
-            [["Maria Silva", "Programação", "regular_seg_qua", "manha",
+            [["Maria Silva", "Programação", "regular_seg_qua", "manha_1",
               "ontem", "30/08/2026"]],
         )
 
@@ -147,10 +147,11 @@ class TestValidacao:
 
 
 class TestSobrecarga:
-    def test_aceita_sobrecarga_com_alerta(self, base_carregada: Session) -> None:
+    def test_aceita_sobreposicao_com_alerta(self, base_carregada: Session) -> None:
         """É o retrato do mundo real, não erro de preenchimento.
 
-        João tem 3h à noite; duas turmas de Robótica exigem 4h por encontro cada.
+        João só tem o slot 'noite' — duas turmas nesse mesmo slot com
+        períodos sobrepostos são aceitas, mas sinalizadas.
         """
         resultado = _importar(
             base_carregada,
@@ -158,20 +159,20 @@ class TestSobrecarga:
                 ["João Souza", "Robótica", "regular_seg_qua", "noite",
                  "01/06/2026", "30/08/2026"],
                 ["João Souza", "Robótica", "regular_ter_qui", "noite",
-                 "01/06/2026", "30/08/2026"],
+                 "15/07/2026", "20/09/2026"],
             ],
         )
 
         assert resultado.erros == []
         assert resultado.importados == 2
-        assert any("acima da capacidade" in a.mensagem for a in resultado.alertas)
+        assert any("sobrepostos" in a.mensagem for a in resultado.alertas)
 
-    def test_sem_alerta_quando_cabe_na_capacidade(self, base_carregada: Session) -> None:
-        """Maria tem 4h de manhã; uma turma de Programação usa 3h por encontro."""
+    def test_sem_alerta_quando_nao_ha_sobreposicao(self, base_carregada: Session) -> None:
+        """Uma única turma no slot não tem com o que se sobrepor."""
         resultado = _importar(
             base_carregada,
-            [["Maria Silva", "Programação", "regular_seg_qua", "manha",
+            [["Maria Silva", "Programação", "regular_seg_qua", "manha_1",
               "01/06/2026", "30/08/2026"]],
         )
 
-        assert not any("acima da capacidade" in a.mensagem for a in resultado.alertas)
+        assert not any("sobrepostos" in a.mensagem for a in resultado.alertas)

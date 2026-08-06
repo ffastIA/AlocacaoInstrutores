@@ -17,16 +17,15 @@ from datetime import date
 
 from ortools.sat.python import cp_model
 
+from app.models.enums import Turno
 from app.services.solver.dados import InstrutorDados, TipologiaDados, TurmaAndamentoDados
 from app.services.solver.gerador_candidatas import Candidata
 from app.services.solver.ocupacao import (
     Ocupacao,
     calcular_ocupacao,
-    horas_disponiveis_periodo,
-    ocupado_fixo_total,
+    slots_disponiveis_periodo,
+    slots_ocupados_total,
 )
-
-MAX_TURMAS_POR_DIA = 4
 
 # Horas podem ser fracionárias (ex.: 3.5h); o CP-SAT exige coeficientes
 # inteiros em suas restrições e objetivo, então toda grandeza em horas é
@@ -101,25 +100,37 @@ class ResultadoSolver:
 def normalizadores_padrao(
     candidatas: list[Candidata],
     instrutores: list[InstrutorDados],
+    tipologias: dict[int, TipologiaDados],
     periodo_de: date,
     periodo_ate: date,
 ) -> Normalizadores:
     """Estima os fatores de normalização a partir da capacidade real do cenário.
 
-    O aproveitamento é normalizado pela **capacidade total disponível** dos
-    instrutores no período — nunca pela soma bruta de todas as candidatas.
-    A maioria das candidatas compete pelo mesmo instrutor/turno/data e jamais
-    poderia ser aberta simultaneamente, então usar essa soma como teto
+    O aproveitamento é normalizado por uma estimativa da **capacidade total em
+    horas** dos instrutores no período — nunca pela soma bruta de todas as
+    candidatas. A maioria das candidatas compete pelo mesmo instrutor/slot/data
+    e jamais poderia ser aberta simultaneamente, então usar essa soma como teto
     superestima muito o aproveitamento realisticamente alcançável. Isso
     inflaria artificialmente o normalizador (encolhendo o coeficiente de
     aproveitamento) e faria o termo de equilíbrio de carga — cujo teto fixo é
     apenas 1000 — dominar o objetivo por um fator de escala, não por peso real
     escolhido pelo usuário.
+
+    Como a capacidade por slot não é mais expressa em horas (cada slot vale 1
+    turma, não X horas), a estimativa em horas usa a quantidade de slot-dias
+    disponíveis multiplicada pela duração média de encontro entre as
+    tipologias configuradas no escopo — a melhor referência de magnitude
+    disponível sem assumir uma duração fixa de slot.
     """
-    capacidade_total = sum(
-        horas_disponiveis_periodo(i, periodo_de, periodo_ate) for i in instrutores
+    capacidade_slots = sum(
+        slots_disponiveis_periodo(i, periodo_de, periodo_ate) for i in instrutores
     )
-    aproveitamento = capacidade_total or 1.0
+    media_horas_por_encontro = (
+        sum(t.horas_por_encontro for t in tipologias.values()) / len(tipologias)
+        if tipologias
+        else 3.0
+    )
+    aproveitamento = (capacidade_slots * media_horas_por_encontro) or 1.0
 
     if not candidatas:
         return Normalizadores(
@@ -166,19 +177,17 @@ def resolver(
     """
     configuracao = configuracao or ConfiguracaoSolver()
     normalizadores = normalizadores or normalizadores_padrao(
-        candidatas, instrutores, periodo_de, periodo_ate
+        candidatas, instrutores, tipologias, periodo_de, periodo_ate
     )
 
     model = cp_model.CpModel()
     z = {c.id: model.NewBoolVar(f"z_{c.id}") for c in candidatas}
 
     # Recalcula a ocupação (barato) a partir dos mesmos dados usados na
-    # geração das candidatas, para alimentar as restrições de capacidade e
-    # teto diário.
-    ocupacao = calcular_ocupacao(turmas_andamento, tipologias)
+    # geração das candidatas, para alimentar a restrição de capacidade.
+    ocupacao = calcular_ocupacao(turmas_andamento)
 
-    _restringir_capacidade_horaria(model, z, candidatas, instrutores, ocupacao)
-    _restringir_teto_diario(model, z, candidatas, ocupacao)
+    _restringir_capacidade_slot(model, z, candidatas, ocupacao)
 
     semana_max = max((c.semana_inicio for c in candidatas), default=0)
 
@@ -306,65 +315,30 @@ def _status_texto(status: int) -> str:
 # --------------------------------------------------------------------------
 
 
-def _restringir_capacidade_horaria(
+def _restringir_capacidade_slot(
     model: cp_model.CpModel,
     z: dict[int, cp_model.IntVar],
     candidatas: list[Candidata],
-    instrutores: list[InstrutorDados],
     ocupacao: Ocupacao,
 ) -> None:
-    """Para cada (instrutor, turno, data) tocada por alguma candidata: horas
-    escolhidas + ocupação de turmas em andamento não podem exceder a
-    capacidade daquele turno."""
-    capacidade_por_instrutor_turno = {
-        (i.id, turno): cap for i in instrutores for turno, cap in i.turnos.items()
-    }
-
-    grupos: dict[tuple, list[tuple[int, float]]] = {}
+    """Para cada (instrutor, slot, data) tocada por alguma candidata: no
+    máximo uma turma pode ocupar aquele slot naquele dia, e nenhuma se o slot
+    já estiver ocupado por uma turma em andamento."""
+    grupos: dict[tuple[int, Turno, date], list[int]] = {}
     for c in candidatas:
         for encontro in c.calendario.encontros:
             chave = (c.instrutor_id, encontro.turno, encontro.data)
-            grupos.setdefault(chave, []).append((c.id, encontro.horas))
+            grupos.setdefault(chave, []).append(c.id)
 
-    for (instrutor_id, turno, data), itens in grupos.items():
-        capacidade = capacidade_por_instrutor_turno.get((instrutor_id, turno), 0.0)
-        ocupado_fixo = ocupacao.horas_por_turno_data.get((instrutor_id, turno, data), 0.0)
-
-        if ocupado_fixo == float("inf") or ocupado_fixo >= capacidade:
-            # A ocupação fixa já esgota a capacidade: nenhuma candidata cabe
-            # ali. Na prática o gerador de candidatas já poda esses casos;
-            # esta restrição é uma defesa adicional.
-            for candidato_id, _ in itens:
-                model.Add(z[candidato_id] == 0)
-            continue
-
-        limite = _escalar_horas(capacidade - ocupado_fixo)
-        model.Add(
-            sum(_escalar_horas(horas) * z[candidato_id] for candidato_id, horas in itens)
-            <= limite
-        )
-
-
-def _restringir_teto_diario(
-    model: cp_model.CpModel,
-    z: dict[int, cp_model.IntVar],
-    candidatas: list[Candidata],
-    ocupacao: Ocupacao,
-) -> None:
-    """Limita a 4 o total de turmas (sugeridas + em andamento) por instrutor e dia."""
-    grupos: dict[tuple[int, date], list[int]] = {}
-    for c in candidatas:
-        for data in {e.data for e in c.calendario.encontros}:
-            grupos.setdefault((c.instrutor_id, data), []).append(c.id)
-
-    for (instrutor_id, data), candidatos_ids in grupos.items():
-        ja_ocupadas = ocupacao.turmas_por_data.get((instrutor_id, data), 0)
-        limite = MAX_TURMAS_POR_DIA - ja_ocupadas
-        if limite < 0:
-            for cid in candidatos_ids:
+    for chave, candidato_ids in grupos.items():
+        if chave in ocupacao.slots_ocupados:
+            # O slot já está ocupado por uma turma em andamento. Na prática o
+            # gerador de candidatas já poda esses casos; esta restrição é uma
+            # defesa adicional.
+            for cid in candidato_ids:
                 model.Add(z[cid] == 0)
             continue
-        model.Add(sum(z[cid] for cid in candidatos_ids) <= limite)
+        model.AddAtMostOne(z[cid] for cid in candidato_ids)
 
 
 # --------------------------------------------------------------------------
@@ -395,33 +369,26 @@ def _termo_equilibrio_carga(
 ) -> cp_model.IntVar:
     """T3 — range (máximo − mínimo) da utilização percentual entre instrutores.
 
-    Utilização em escala 0–1000, não em horas brutas, para não penalizar
-    injustamente quem tem menor capacidade declarada.
+    Utilização em escala 0–1000, calculada sobre slot-dias (não horas), já que
+    a capacidade por slot não é mais expressa em horas — cada slot vale 1
+    turma, independentemente da tipologia alocada nele.
     """
     utilizacoes: list[cp_model.IntVar] = []
 
     for instrutor in instrutores:
-        disponivel_scaled = round(
-            horas_disponiveis_periodo(instrutor, periodo_de, periodo_ate) * ESCALA_HORAS
-        )
-        if disponivel_scaled <= 0:
+        disponivel = slots_disponiveis_periodo(instrutor, periodo_de, periodo_ate)
+        if disponivel <= 0:
             continue  # sem capacidade no período; não entra no balanceamento
 
-        ocupado_bruto = ocupado_fixo_total(ocupacao, instrutor.id)
-        ocupado_scaled = (
-            disponivel_scaled
-            if ocupado_bruto == float("inf")
-            else min(round(ocupado_bruto * ESCALA_HORAS), disponivel_scaled)
-        )
+        ocupado_fixo = slots_ocupados_total(ocupacao, instrutor.id, periodo_de, periodo_ate)
 
         candidatas_do_instrutor = [c for c in candidatas if c.instrutor_id == instrutor.id]
-        alocado_expr = ocupado_scaled + sum(
-            _escalar_horas(c.calendario.carga_horaria_total) * z[c.id]
-            for c in candidatas_do_instrutor
+        alocado_expr = ocupado_fixo + sum(
+            len(c.calendario.encontros) * z[c.id] for c in candidatas_do_instrutor
         )
 
         util_var = model.NewIntVar(0, ESCALA_UTILIZACAO, f"util_{instrutor.id}")
-        model.AddDivisionEquality(util_var, alocado_expr * ESCALA_UTILIZACAO, disponivel_scaled)
+        model.AddDivisionEquality(util_var, alocado_expr * ESCALA_UTILIZACAO, disponivel)
         utilizacoes.append(util_var)
 
     if not utilizacoes:

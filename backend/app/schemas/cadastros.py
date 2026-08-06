@@ -78,20 +78,10 @@ class TipologiaPendenteOut(_Orm):
 # --------------------------------------------------------------------------
 
 
-class TurnoDisponivelIn(BaseModel):
-    turno: Turno
-    carga_horaria_horas: float = Field(gt=0)
-
-
-class TurnoDisponivelOut(_Orm):
-    turno: Turno
-    carga_horaria_horas: float
-
-
 class InstrutorIn(BaseModel):
     nome: str = Field(min_length=1, max_length=200)
     projeto_id: int
-    turnos: list[TurnoDisponivelIn] = Field(min_length=1)
+    turnos: list[Turno] = Field(min_length=1)
     dias_semana: list[int] = Field(min_length=1)
     tipologia_ids: list[int] = Field(min_length=1)
     observacao: str | None = None
@@ -99,8 +89,7 @@ class InstrutorIn(BaseModel):
 
     @model_validator(mode="after")
     def _validar(self) -> "InstrutorIn":
-        turnos = [t.turno for t in self.turnos]
-        if len(turnos) != len(set(turnos)):
+        if len(self.turnos) != len(set(self.turnos)):
             raise ValueError("Turno informado mais de uma vez")
 
         for dia in self.dias_semana:
@@ -122,7 +111,7 @@ class InstrutorOut(_Orm):
     nome: str
     projeto_id: int
     projeto_nome: str
-    turnos: list[TurnoDisponivelOut]
+    turnos: list[Turno]
     dias_semana: list[int]
     tipologias: list[str]
     observacao: str | None

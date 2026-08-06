@@ -30,7 +30,7 @@ def test_instrutor_libera_duas_tipologias_e_nenhuma_terceira() -> None:
     instrutor_multi = InstrutorDados(
         id=1,
         projeto_id=1,
-        turnos={Turno.MANHA: 4.0},
+        turnos={Turno.MANHA_1: 4.0},
         dias_semana=frozenset({2, 3, 4, 5}),
         tipologia_ids=frozenset({PROGRAMACAO, PIXEL_ART}),
     )
@@ -40,7 +40,7 @@ def test_instrutor_libera_duas_tipologias_e_nenhuma_terceira() -> None:
     instrutor_robotica = InstrutorDados(
         id=2,
         projeto_id=1,
-        turnos={Turno.TARDE: 4.0},
+        turnos={Turno.TARDE_1: 4.0},
         dias_semana=frozenset({2, 3, 4, 5}),
         tipologia_ids=frozenset({ROBOTICA}),
     )
@@ -64,7 +64,7 @@ def test_instrutor_libera_duas_tipologias_e_nenhuma_terceira() -> None:
             # instrutor, então não sobra nenhum dia livre nesse turno até o
             # término — só a partir de 31/08 ele fica de fato disponível.
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.MANHA,
+            turno=Turno.MANHA_1,
             data_inicio=date(2026, 6, 1),
             data_fim_prevista=DATA_TERMINO_TURMA_ATUAL,
         ),
@@ -72,7 +72,7 @@ def test_instrutor_libera_duas_tipologias_e_nenhuma_terceira() -> None:
             instrutor_id=2,
             tipologia_id=ROBOTICA,
             modalidade=Modalidade.INTENSIVA_SEG_QUI,
-            turno=Turno.TARDE,
+            turno=Turno.TARDE_1,
             data_inicio=PERIODO_DE,
             data_fim_prevista=PERIODO_ATE,  # ocupado o período inteiro
         ),

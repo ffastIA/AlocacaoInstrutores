@@ -17,7 +17,7 @@ def _enviar(client: TestClient, rota: str, conteudo: bytes, nome: str = "planilh
 class TestUploadInstrutores:
     def test_importacao_bem_sucedida(self, client: TestClient) -> None:
         conteudo = planilha_instrutores(
-            [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"]]
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"]]
         )
 
         resposta = _enviar(client, "/importar/instrutores", conteudo)
@@ -30,8 +30,8 @@ class TestUploadInstrutores:
     def test_relatorio_de_erros_por_linha(self, client: TestClient) -> None:
         conteudo = planilha_instrutores(
             [
-                ["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Programação"],
-                ["Erro", "Jovem Digital", "manha;tarde", "4", "2;4", "Programação"],
+                ["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Programação"],
+                ["Erro", "Jovem Digital", "madrugada", "2;4", "Programação"],
             ]
         )
 
@@ -40,7 +40,7 @@ class TestUploadInstrutores:
         assert corpo["importados"] == 1
         assert corpo["rejeitados"] == 1
         assert corpo["erros"][0]["linha"] == 3
-        assert "mesma quantidade" in corpo["erros"][0]["motivo"]
+        assert "Turno inválido" in corpo["erros"][0]["motivo"]
 
     def test_arquivo_sem_coluna_obrigatoria(self, client: TestClient) -> None:
         from tests.fabricas import csv_bytes
@@ -66,7 +66,7 @@ class TestUploadInstrutores:
 
     def test_alerta_de_tipologias_pendentes(self, client: TestClient) -> None:
         conteudo = planilha_instrutores(
-            [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Robótica"]]
+            [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Robótica"]]
         )
 
         corpo = _enviar(client, "/importar/instrutores", conteudo).json()
@@ -80,7 +80,7 @@ class TestUploadTipologias:
             client,
             "/importar/instrutores",
             planilha_instrutores(
-                [["Maria Silva", "Jovem Digital", "manha", "4", "2;4", "Robótica"]]
+                [["Maria Silva", "Jovem Digital", "manha_1", "2;4", "Robótica"]]
             ),
         )
 

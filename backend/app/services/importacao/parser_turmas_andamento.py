@@ -38,7 +38,7 @@ def importar_turmas_andamento(
         return resultado
 
     processar_linhas(db, planilha.linhas, _importar_linha, resultado)
-    _alertar_sobrecarga(db, resultado)
+    _alertar_sobreposicao_de_slot(db, resultado)
     return resultado
 
 
@@ -54,8 +54,7 @@ def _importar_linha(db: Session, linha: Linha) -> str:
     data_fim = parse_data(linha.texto("data_fim_prevista"), "Data de término prevista")
     if data_fim < data_inicio:
         raise ValorInvalidoError(
-            f"Data de término ({data_fim:%d/%m/%Y}) é anterior à de início "
-            f"({data_inicio:%d/%m/%Y})"
+            f"Data de término ({data_fim:%d/%m/%Y}) é anterior à de início ({data_inicio:%d/%m/%Y})"
         )
 
     db.add(
@@ -117,50 +116,33 @@ def _validar_turno_do_instrutor(instrutor: Instrutor, turno: Turno) -> None:
         )
 
 
-def _alertar_sobrecarga(db: Session, resultado: ResultadoImportacao) -> None:
-    """Sinaliza instrutores cujas turmas ultrapassam a capacidade declarada.
+def _alertar_sobreposicao_de_slot(db: Session, resultado: ResultadoImportacao) -> None:
+    """Sinaliza turmas do mesmo instrutor no mesmo slot com períodos sobrepostos.
 
-    Aceito de propósito: é o retrato do mundo real, não um erro de
+    Cada slot comporta no máximo uma turma por vez, mas isso é aceito de
+    propósito na importação — é o retrato do mundo real, não um erro de
     preenchimento. Recusar impediria a equipe de simular exatamente o caso em
     que mais precisa de ajuda.
     """
     turmas = db.scalars(select(TurmaEmAndamento)).all()
 
-    ocupacao: dict[tuple[int, Turno], int] = {}
+    por_slot: dict[tuple[int, Turno], list[TurmaEmAndamento]] = {}
     for turma in turmas:
         chave = (turma.instrutor_id, turma.turno)
-        ocupacao[chave] = ocupacao.get(chave, 0) + 1
+        por_slot.setdefault(chave, []).append(turma)
 
-    for (instrutor_id, turno), quantidade in sorted(ocupacao.items(), key=lambda x: x[0][0]):
+    for (instrutor_id, turno), grupo in sorted(por_slot.items(), key=lambda x: x[0][0]):
+        if len(grupo) < 2:
+            continue
         instrutor = db.get(Instrutor, instrutor_id)
         if instrutor is None:
             continue
-        capacidade = next((t for t in instrutor.turnos if t.turno == turno), None)
-        if capacidade is None:
-            continue
-        horas_necessarias = _horas_minimas(db, instrutor_id, turno)
-        if horas_necessarias > capacidade.carga_horaria_horas:
-            resultado.adicionar_alerta(
-                f"Instrutor '{instrutor.nome}' tem {quantidade} turma(s) em andamento no turno "
-                f"'{turno.value}' somando {horas_necessarias:g}h, acima da capacidade declarada "
-                f"de {capacidade.carga_horaria_horas:g}h."
-            )
-
-
-def _horas_minimas(db: Session, instrutor_id: int, turno: Turno) -> float:
-    """Soma as horas por encontro das turmas do instrutor naquele turno.
-
-    Tipologias ainda não configuradas não entram na soma — sem carga horária,
-    não há como estimar o consumo.
-    """
-    turmas = db.scalars(
-        select(TurmaEmAndamento).where(
-            TurmaEmAndamento.instrutor_id == instrutor_id,
-            TurmaEmAndamento.turno == turno,
-        )
-    ).all()
-    return sum(
-        t.tipologia.horas_por_encontro
-        for t in turmas
-        if t.tipologia and t.tipologia.horas_por_encontro
-    )
+        grupo_ordenado = sorted(grupo, key=lambda t: t.data_inicio)
+        for anterior, atual in zip(grupo_ordenado, grupo_ordenado[1:], strict=False):
+            if atual.data_inicio <= anterior.data_fim_prevista:
+                resultado.adicionar_alerta(
+                    f"Instrutor '{instrutor.nome}' tem turmas em andamento com períodos "
+                    f"sobrepostos no slot '{turno.value}' — apenas uma turma pode ocupar o "
+                    "slot por vez."
+                )
+                break
