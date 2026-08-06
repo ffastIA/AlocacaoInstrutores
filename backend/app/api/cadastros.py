@@ -4,12 +4,15 @@ Complementa a importação de planilhas: permite ajuste pontual sem exigir
 reeditar e reimportar o arquivo inteiro.
 """
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import (
+    DataNaoLetiva,
     Instrutor,
     InstrutorDia,
     InstrutorTipologia,
@@ -19,6 +22,9 @@ from app.models import (
     TurmaEmAndamento,
 )
 from app.schemas.cadastros import (
+    DataNaoLetivaIn,
+    DataNaoLetivaOut,
+    DatasNaoLetivasListaOut,
     InstrutorIn,
     InstrutorOut,
     ProjetoIn,
@@ -30,6 +36,7 @@ from app.schemas.cadastros import (
     TurmaEmAndamentoOut,
     TurnoDisponivelOut,
 )
+from app.services.importacao.parser_datas_nao_letivas import AVISO_SEM_EFEITO_CALCULO
 from app.services.importacao.parser_tipologias import listar_pendentes
 
 router = APIRouter(tags=["cadastros"])
@@ -50,9 +57,7 @@ def _obter_ou_404(db: Session, modelo: type, id_: int, rotulo: str):
 
 
 def _projeto_out(db: Session, projeto: Projeto) -> ProjetoOut:
-    total = db.scalar(
-        select(func.count(Instrutor.id)).where(Instrutor.projeto_id == projeto.id)
-    )
+    total = db.scalar(select(func.count(Instrutor.id)).where(Instrutor.projeto_id == projeto.id))
     return ProjetoOut(
         id=projeto.id,
         nome=projeto.nome,
@@ -333,9 +338,7 @@ def _turma_out(turma: TurmaEmAndamento) -> TurmaEmAndamentoOut:
     ),
 )
 def listar_turmas_andamento(db: Session = Depends(get_db)) -> list[TurmaEmAndamentoOut]:
-    turmas = db.scalars(
-        select(TurmaEmAndamento).order_by(TurmaEmAndamento.data_fim_prevista)
-    ).all()
+    turmas = db.scalars(select(TurmaEmAndamento).order_by(TurmaEmAndamento.data_fim_prevista)).all()
     return [_turma_out(t) for t in turmas]
 
 
@@ -374,4 +377,92 @@ def criar_turma_andamento(
 def remover_turma_andamento(turma_id: int, db: Session = Depends(get_db)) -> None:
     turma = _obter_ou_404(db, TurmaEmAndamento, turma_id, "Turma em andamento")
     db.delete(turma)
+    db.commit()
+
+
+# --------------------------------------------------------------------------
+# Datas não letivas
+# --------------------------------------------------------------------------
+
+
+def _data_nao_letiva_out(data_nao_letiva: DataNaoLetiva) -> DataNaoLetivaOut:
+    return DataNaoLetivaOut(
+        id=data_nao_letiva.id,
+        data_inicio=data_nao_letiva.data_inicio,
+        data_fim=data_nao_letiva.data_fim,
+        descricao=data_nao_letiva.descricao,
+        tipo=data_nao_letiva.tipo,
+        projeto_id=data_nao_letiva.projeto_id,
+        projeto_nome=data_nao_letiva.projeto.nome if data_nao_letiva.projeto else None,
+    )
+
+
+@router.get(
+    "/datas-nao-letivas",
+    response_model=DatasNaoLetivasListaOut,
+    summary="Lista feriados, recessos e férias",
+    description=(
+        "Filtra por intervalo (interseção) e por projeto. "
+        "Os dados ainda não afetam o cálculo das simulações na v1."
+    ),
+)
+def listar_datas_nao_letivas(
+    de: date | None = Query(default=None, description="Início do período consultado"),
+    ate: date | None = Query(default=None, description="Fim do período consultado"),
+    projeto_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> DatasNaoLetivasListaOut:
+    consulta = select(DataNaoLetiva).order_by(DataNaoLetiva.data_inicio)
+    if de is not None:
+        consulta = consulta.where(DataNaoLetiva.data_fim >= de)
+    if ate is not None:
+        consulta = consulta.where(DataNaoLetiva.data_inicio <= ate)
+    if projeto_id is not None:
+        consulta = consulta.where(DataNaoLetiva.projeto_id == projeto_id)
+    itens = [_data_nao_letiva_out(d) for d in db.scalars(consulta).all()]
+    return DatasNaoLetivasListaOut(itens=itens, aviso=AVISO_SEM_EFEITO_CALCULO)
+
+
+@router.post(
+    "/datas-nao-letivas",
+    response_model=DataNaoLetivaOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def criar_data_nao_letiva(
+    dados: DataNaoLetivaIn, db: Session = Depends(get_db)
+) -> DataNaoLetivaOut:
+    if dados.projeto_id is not None:
+        _obter_ou_404(db, Projeto, dados.projeto_id, "Projeto")
+    data_nao_letiva = DataNaoLetiva(
+        data_inicio=dados.data_inicio,
+        data_fim=dados.data_fim or dados.data_inicio,
+        descricao=dados.descricao,
+        tipo=dados.tipo,
+        projeto_id=dados.projeto_id,
+    )
+    db.add(data_nao_letiva)
+    db.commit()
+    return _data_nao_letiva_out(data_nao_letiva)
+
+
+@router.put("/datas-nao-letivas/{data_nao_letiva_id}", response_model=DataNaoLetivaOut)
+def atualizar_data_nao_letiva(
+    data_nao_letiva_id: int, dados: DataNaoLetivaIn, db: Session = Depends(get_db)
+) -> DataNaoLetivaOut:
+    data_nao_letiva = _obter_ou_404(db, DataNaoLetiva, data_nao_letiva_id, "Data não letiva")
+    if dados.projeto_id is not None:
+        _obter_ou_404(db, Projeto, dados.projeto_id, "Projeto")
+    data_nao_letiva.data_inicio = dados.data_inicio
+    data_nao_letiva.data_fim = dados.data_fim or dados.data_inicio
+    data_nao_letiva.descricao = dados.descricao
+    data_nao_letiva.tipo = dados.tipo
+    data_nao_letiva.projeto_id = dados.projeto_id
+    db.commit()
+    return _data_nao_letiva_out(data_nao_letiva)
+
+
+@router.delete("/datas-nao-letivas/{data_nao_letiva_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remover_data_nao_letiva(data_nao_letiva_id: int, db: Session = Depends(get_db)) -> None:
+    data_nao_letiva = _obter_ou_404(db, DataNaoLetiva, data_nao_letiva_id, "Data não letiva")
+    db.delete(data_nao_letiva)
     db.commit()

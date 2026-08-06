@@ -4,7 +4,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.enums import DIA_SEMANA_MAX, DIA_SEMANA_MIN, Modalidade, Turno
+from app.models.enums import DIA_SEMANA_MAX, DIA_SEMANA_MIN, Modalidade, TipoDataNaoLetiva, Turno
 
 
 class _Orm(BaseModel):
@@ -162,3 +162,40 @@ class TurmaEmAndamentoOut(_Orm):
     turno: Turno
     data_inicio: date
     data_fim_prevista: date
+
+
+# --------------------------------------------------------------------------
+# Datas não letivas
+# --------------------------------------------------------------------------
+
+
+class DataNaoLetivaIn(BaseModel):
+    data_inicio: date
+    data_fim: date | None = None
+    descricao: str = Field(min_length=1, max_length=300)
+    tipo: TipoDataNaoLetiva = TipoDataNaoLetiva.FERIADO
+    projeto_id: int | None = Field(default=None, description="Vazio aplica a todos os projetos")
+
+    @model_validator(mode="after")
+    def _validar_datas(self) -> "DataNaoLetivaIn":
+        if self.data_fim is not None and self.data_fim < self.data_inicio:
+            raise ValueError("Data de término é anterior à data de início")
+        return self
+
+
+class DataNaoLetivaOut(_Orm):
+    id: int
+    data_inicio: date
+    data_fim: date
+    descricao: str
+    tipo: TipoDataNaoLetiva
+    projeto_id: int | None
+    projeto_nome: str | None
+
+
+class DatasNaoLetivasListaOut(BaseModel):
+    """Envelope de consulta — reforça, a cada leitura, que os dados ainda não
+    entram no cálculo das simulações."""
+
+    itens: list[DataNaoLetivaOut]
+    aviso: str

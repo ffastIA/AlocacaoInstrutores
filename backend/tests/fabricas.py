@@ -62,3 +62,10 @@ CABECALHOS_TURMAS = [
 
 def planilha_turmas(linhas: list[list[str]]) -> bytes:
     return csv_bytes(CABECALHOS_TURMAS, linhas)
+
+
+CABECALHOS_DATAS_NAO_LETIVAS = ["data_inicio", "data_fim", "descricao", "tipo", "projeto"]
+
+
+def planilha_datas_nao_letivas(linhas: list[list[str]]) -> bytes:
+    return csv_bytes(CABECALHOS_DATAS_NAO_LETIVAS, linhas)

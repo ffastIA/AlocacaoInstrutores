@@ -95,6 +95,15 @@ MODELOS: dict[str, ModeloPlanilha] = {
             ],
         ],
     ),
+    "datas-nao-letivas": ModeloPlanilha(
+        nome_arquivo="modelo_datas_nao_letivas.xlsx",
+        cabecalhos=["data_inicio", "data_fim", "descricao", "tipo", "projeto"],
+        exemplos=[
+            ["07/09/2026", "", "Independência", "feriado", ""],
+            ["24/12/2026", "06/01/2027", "Recesso de fim de ano", "recesso", ""],
+            ["15/03/2027", "19/03/2027", "Férias da equipe", "ferias", "Inclusão Tech"],
+        ],
+    ),
 }
 
 # Orientações de preenchimento. Ficam numa **aba separada**: se estivessem
@@ -120,6 +129,13 @@ ORIENTACOES: dict[str, list[str]] = {
         "turno: manha, tarde ou noite. Precisa constar na disponibilidade do instrutor.",
         "Datas no formato DD/MM/AAAA.",
         "Deixe a planilha sem linhas de dados se nenhuma turma estiver em curso.",
+    ],
+    "datas-nao-letivas": [
+        "Datas no formato DD/MM/AAAA.",
+        "data_fim: deixe vazio para um intervalo de um único dia.",
+        "tipo: feriado, recesso ou ferias. Vazio equivale a 'feriado'.",
+        "projeto: nome do projeto ao qual o intervalo se aplica. Vazio aplica a todos.",
+        "Estes dados ainda não afetam o cálculo das simulações nesta versão.",
     ],
 }
 
@@ -193,8 +209,7 @@ def _criar_aba_orientacoes(workbook: Workbook, tipo: str) -> None:
         row=len(orientacoes) + 5,
         column=1,
         value=(
-            "Substitua as linhas de exemplo da aba 'Dados' pelos seus registros "
-            "antes de importar."
+            "Substitua as linhas de exemplo da aba 'Dados' pelos seus registros antes de importar."
         ),
     )
     nota.font = Font(bold=True, italic=True)

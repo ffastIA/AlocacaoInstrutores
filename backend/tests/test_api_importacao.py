@@ -103,7 +103,12 @@ class TestModelos:
     def test_lista_tipos_disponiveis(self, client: TestClient) -> None:
         tipos = client.get("/importar/modelos").json()["tipos"]
 
-        assert set(tipos) == {"instrutores", "tipologias", "turmas-em-andamento"}
+        assert set(tipos) == {
+            "instrutores",
+            "tipologias",
+            "turmas-em-andamento",
+            "datas-nao-letivas",
+        }
 
     def test_baixa_modelo_de_instrutores(self, client: TestClient) -> None:
         resposta = client.get("/importar/modelos/instrutores")

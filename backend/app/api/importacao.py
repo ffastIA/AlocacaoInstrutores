@@ -11,6 +11,7 @@ from app.services.importacao.modelos import (
     gerar_modelo,
     tipos_disponiveis,
 )
+from app.services.importacao.parser_datas_nao_letivas import importar_datas_nao_letivas
 from app.services.importacao.parser_instrutores import importar_instrutores
 from app.services.importacao.parser_tipologias import importar_tipologias
 from app.services.importacao.parser_turmas_andamento import importar_turmas_andamento
@@ -82,6 +83,24 @@ async def importar_turmas_endpoint(
 ) -> ResultadoImportacaoOut:
     conteudo, nome = await _ler_upload(arquivo)
     return ResultadoImportacaoOut.de_resultado(importar_turmas_andamento(db, conteudo, nome))
+
+
+@router.post(
+    "/datas-nao-letivas",
+    response_model=ResultadoImportacaoOut,
+    summary="Importa a planilha de datas não letivas",
+    description=(
+        "Registra feriados, recessos e férias. Os dados são persistidos, mas "
+        "ainda não afetam o cálculo das simulações — funcionalidade reservada "
+        "para uma versão futura."
+    ),
+)
+async def importar_datas_nao_letivas_endpoint(
+    arquivo: UploadFile = File(description="Planilha .xlsx ou .csv"),
+    db: Session = Depends(get_db),
+) -> ResultadoImportacaoOut:
+    conteudo, nome = await _ler_upload(arquivo)
+    return ResultadoImportacaoOut.de_resultado(importar_datas_nao_letivas(db, conteudo, nome))
 
 
 @router.get(
