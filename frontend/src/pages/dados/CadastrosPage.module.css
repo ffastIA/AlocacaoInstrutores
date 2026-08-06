@@ -1,0 +1,9 @@
+.container {
+  max-width: 60rem;
+}
+
+.titulo {
+  margin: 0 0 var(--space-5);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}

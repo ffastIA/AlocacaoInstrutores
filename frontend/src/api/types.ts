@@ -52,6 +52,12 @@ export interface Projeto {
   total_instrutores: number;
 }
 
+export interface ProjetoIn {
+  nome: string;
+  descricao: string | null;
+  ativo: boolean;
+}
+
 export interface Tipologia {
   id: number;
   nome: string;
@@ -61,6 +67,13 @@ export interface Tipologia {
   configurada: boolean;
   num_encontros: number | null;
   total_instrutores: number;
+}
+
+export interface TipologiaIn {
+  nome: string;
+  carga_horaria_total_horas: number | null;
+  horas_por_encontro: number | null;
+  descricao: string | null;
 }
 
 export interface TipologiaPendente {
@@ -86,6 +99,16 @@ export interface Instrutor {
   ativo: boolean;
 }
 
+export interface InstrutorIn {
+  nome: string;
+  projeto_id: number;
+  turnos: TurnoDisponivel[];
+  dias_semana: number[];
+  tipologia_ids: number[];
+  observacao: string | null;
+  ativo: boolean;
+}
+
 export interface TurmaEmAndamento {
   id: number;
   codigo_turma: string | null;
@@ -98,6 +121,39 @@ export interface TurmaEmAndamento {
   turno: Turno;
   data_inicio: string;
   data_fim_prevista: string;
+}
+
+export interface TurmaEmAndamentoIn {
+  instrutor_id: number;
+  tipologia_id: number;
+  modalidade: Modalidade;
+  turno: Turno;
+  data_inicio: string;
+  data_fim_prevista: string;
+  codigo_turma: string | null;
+}
+
+export interface DataNaoLetiva {
+  id: number;
+  data_inicio: string;
+  data_fim: string;
+  descricao: string;
+  tipo: TipoDataNaoLetiva;
+  projeto_id: number | null;
+  projeto_nome: string | null;
+}
+
+export interface DataNaoLetivaIn {
+  data_inicio: string;
+  data_fim: string | null;
+  descricao: string;
+  tipo: TipoDataNaoLetiva;
+  projeto_id: number | null;
+}
+
+export interface DatasNaoLetivasLista {
+  itens: DataNaoLetiva[];
+  aviso: string;
 }
 
 // --------------------------------------------------------------------------
